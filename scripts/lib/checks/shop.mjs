@@ -1,11 +1,10 @@
 // Duties for online sales to consumers: prices (PAngV), order button and cancellation
 // button (BGB), dispute resolution notice, product safety and environmental claims.
 
-import { finding, looksLikeShop, okPages, shotsOf } from './helpers.mjs';
-import { PATTERNS } from './helpers.mjs';
+import { finding, looksLikeShop, okPages, PATTERNS, pricedPages, shotsOf } from './helpers.mjs';
 
 const url = (p) => p.finalUrl ?? p.url;
-const ORDER_BUTTON = /bestell|kaufen|buy|order|zahlen|bezahlen|abschlie(ß|ss)en|absenden|submit/i;
+export const ORDER_BUTTON = /bestell|kaufen|buy|order|zahlen|bezahlen|abschlie(ß|ss)en|absenden|submit/i;
 // Whole label must match: extra words ("Jetzt kaufen und weiter zur Zahlung") are not accepted.
 const COMPLIANT_ORDER_BUTTON = /^(jetzt )?(zahlungspflichtig|kostenpflichtig) bestellen$|^zahlungspflichtigen vertrag abschlie(ß|ss)en$|^(jetzt )?kaufen$/i;
 
@@ -13,15 +12,16 @@ const COMPLIANT_ORDER_BUTTON = /^(jetzt )?(zahlungspflichtig|kostenpflichtig) be
 export function isCompliantOrderLabel(label) {
   return COMPLIANT_ORDER_BUTTON.test(String(label).replace(/\s+/g, ' ').trim());
 }
-const SUBSCRIPTION = /\babo\b|abonnement|mitgliedschaft|monatlich kündbar|mindestlaufzeit|\/\s?monat|pro monat|im monat/i;
-const CANCEL_BUTTON = /verträge hier kündigen|vertrag hier kündigen|kündigungsbutton/i;
-const WITHDRAW_FUNCTION = /vertrag widerrufen|widerruf hier|widerruf erklären/i;
+export const SUBSCRIPTION = /\babo\b|abonnement|mitgliedschaft|monatlich kündbar|mindestlaufzeit|\/\s?monat|pro monat|im monat/i;
+export const CANCEL_BUTTON = /verträge hier kündigen|vertrag hier kündigen|kündigungsbutton/i;
+export const WITHDRAW_FUNCTION = /vertrag widerrufen|widerruf hier|widerruf erklären/i;
+export const MANUFACTURER = /hersteller|manufacturer|marke|brand/i;
 const ODR_LINK = /ec\.europa\.eu\/consumers\/odr/i;
-const DISPUTE_NOTICE = /streitbeilegung|schlichtungsstelle|verbraucherschlichtung/i;
-const GREEN_CLAIM = /klimaneutral|co2-?neutral|co₂-?neutral|klimapositiv|umweltfreundlich|nachhaltig(er|e|es)?\b|ökologisch|grün(er|e)? (produkt|energie)/i;
+export const DISPUTE_NOTICE = /streitbeilegung|schlichtungsstelle|verbraucherschlichtung/i;
+export const GREEN_CLAIM = /klimaneutral|co2-?neutral|co₂-?neutral|klimapositiv|umweltfreundlich|nachhaltig(er|e|es)?\b|ökologisch|grün(er|e)? (produkt|energie)/i;
 
 function pricesWithoutVat(pages) {
-  return pages.filter((p) => p.facts.prices.length > 0)
+  return pricedPages(pages)
     .filter((p) => !PATTERNS.vatNote.test(p.facts.bodyText) && !PATTERNS.netNote.test(p.facts.bodyText));
 }
 
@@ -33,11 +33,11 @@ function priceChecks(pages) {
       priceExamples: noVat.slice(0, 3).map((p) => p.facts.prices[0]), screenshots: noVat.slice(0, 2).flatMap(shotsOf),
     }));
   }
-  const netOnly = pages.filter((p) => p.facts.prices.length > 0 && PATTERNS.netNote.test(p.facts.bodyText) && !PATTERNS.vatNote.test(p.facts.bodyText));
+  const netOnly = pricedPages(pages).filter((p) => PATTERNS.netNote.test(p.facts.bodyText) && !PATTERNS.vatNote.test(p.facts.bodyText));
   if (netOnly.length > 0) {
     results.push(finding('PRC-01', 'hint', 'Only net prices (zzgl. MwSt.) – allowed only if the site addresses businesses exclusively', netOnly.map(url)));
   }
-  const noShipping = pages.filter((p) => p.facts.prices.length > 0 && !PATTERNS.shippingNote.test(p.facts.bodyText));
+  const noShipping = pricedPages(pages).filter((p) => !PATTERNS.shippingNote.test(p.facts.bodyText));
   if (noShipping.length > 0) {
     results.push(finding('PRC-02', 'hint', 'Prices without a note on shipping costs', noShipping.map(url)));
   }
@@ -73,7 +73,7 @@ function textChecks(pages) {
 
 function productChecks(pages) {
   const products = pages.filter((p) => p.pageType === 'product');
-  const noMaker = products.filter((p) => !/hersteller|manufacturer|marke|brand/i.test(p.facts.bodyText));
+  const noMaker = products.filter((p) => !MANUFACTURER.test(p.facts.bodyText));
   return noMaker.length > 0 ? [finding('GPSR-01', 'hint', 'Product pages without manufacturer information (GPSR Art. 19)', noMaker.map(url))] : [];
 }
 

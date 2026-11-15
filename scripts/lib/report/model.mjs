@@ -33,9 +33,14 @@ const PRIORITIES = [1, 2, 3];
 const KINDS = new Set(['gap', 'check']);
 const SAFE_URL = /^https?:\/\//i;
 
-/** Escape text for HTML element content and attribute values. */
+/** Escape text for HTML element content and attribute values, without typography (URLs, copyable text such as the AI prompt). */
+export function escHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Escape text for HTML element content and attribute values, with German typography. */
 export function esc(value) {
-  return typography(String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+  return typography(escHtml(value));
 }
 
 /**
@@ -51,7 +56,7 @@ export function typography(text) {
 
 /** Link only for http(s) URLs; anything else is shown as plain text. */
 export function link(url, text) {
-  return SAFE_URL.test(String(url ?? '')) ? `<a href="${esc(url)}">${esc(text ?? url)}</a>` : esc(text ?? url ?? '');
+  return SAFE_URL.test(String(url ?? '')) ? `<a href="${escHtml(url)}">${esc(text ?? url)}</a>` : esc(text ?? url ?? '');
 }
 
 function requireFields(object, fields, where) {

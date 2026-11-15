@@ -7,24 +7,30 @@ import { finding, pageOfType, policyPage } from './helpers.mjs';
 const url = (p) => p.finalUrl ?? p.url;
 
 /** "AG" after a register court is the court (Amtsgericht), not a legal form. */
-const COURT_AG = /(registergericht|amtsgericht|gericht)\s*:?\s*AG\b/gi;
+const COURT_AG = /(registergericht|amtsgericht|gericht|handelsregister|eingetragen beim)\s*:?\s*(beim\s+)?AG\b/gi;
+/** "AG Köln, HRB 5": AG followed by a capitalised place and a register number is the court. */
+const COURT_AG_PLACE = /\bAG\s+[A-ZÄÖÜ][\p{L}-]+(\s+[A-ZÄÖÜ][\p{L}-]+)?,?\s*(am\s+\p{L}+\s+)?HR[AB]\b/gu;
 /** Juristische Personen: § 5 Abs. 1 Nr. 1 DDG requires legal form and representative. */
 const LEGAL_PERSON = /\b(g?GmbH|UG|AG|SE|KGaA|eG)\b|\be\.\s?V\./;
 /** Forms that are entered in a register by law (§ 5 Abs. 1 Nr. 4 DDG). GbR is optional, left out. */
 const REGISTERED_FORM = /\b(g?GmbH|UG|AG|SE|KGaA|eG|KG|OHG|PartG(\s?mbB)?)\b|\be\.\s?(V|K|Kfm|Kfr)\./;
-const REPRESENTATIVE = /geschäftsführ|vertreten durch|vertretungsberechtigt|vorstand|managing director|represented by|\bceo\b/i;
-const REGISTER = /handelsregister|registergericht|registernummer|vereinsregister|partnerschaftsregister|genossenschaftsregister|\b(HR[AB]|VR|PR|GnR)\s*\d|commercial register|register court/i;
+export const REPRESENTATIVE = /geschäftsführ|vertreten durch|vertretungsberechtigt|vorstand|managing director|represented by|\bceo\b/i;
+export const REGISTER = /handelsregister|registergericht|registernummer|vereinsregister|partnerschaftsregister|genossenschaftsregister|\b(HR[AB]|VR|PR|GnR)\s*\d|commercial register|register court/i;
 /** Professions organised in chambers (§ 5 Abs. 1 Nr. 5 DDG). */
-const CHAMBER_PROFESSION = /rechtsanw[aä]lt|steuerberater|wirtschaftspr[üu]fer|notar(in)?\b|patentanw[aä]lt|zahn[aä]rzt|tier[aä]rzt|\b[aä]rzt(in)?\b|apotheker|architekt|psychotherapeut|beratende[rn]? ingenieur/i;
-const CHAMBER = /kammer|chamber/i;
-const OUTDATED_TMG = /§\s*5\s*TMG|telemediengesetz/i;
+export const CHAMBER_PROFESSION = /rechtsanw[aä]lt|steuerberater|wirtschaftspr[üu]fer|notar(in)?\b|patentanw[aä]lt|zahn[aä]rzt|tier[aä]rzt|(?<!\p{L})(fach)?(ärzt(in(nen)?|e)?|arzt)(?!\p{L})|apotheker|(?<!\p{L})(innen|landschafts)?architekt(?!ur)|psychotherapeut|beratende[rn]? ingenieur/iu;
+export const CHAMBER = /kammer|chamber/i;
+/** TMG counts as outdated unless it is named as the former law ("§ 5 DDG (früher TMG)", "vormals § 5 TMG"). */
+const FORMER = '(?:früher|ehemals|ehemalige[rsn]?|vormals|bisher)';
+/** "... TMG wurde abgelöst": a TMG named later in the same sentence as replaced is no outdated reference either. */
+const REPLACED = '(?![^.\\n]*(?:abgelöst|ersetzt|aufgehoben|außer kraft))';
+export const OUTDATED_TMG = new RegExp(`(?<!${FORMER}[\\s:(]*)§§?\\s*\\d+(?:(?!${FORMER})[^;\\n]){0,25}?\\bTMG\\b${REPLACED}|(?<!${FORMER}[\\s:(]*)telemediengesetz${REPLACED}`, 'i');
 
 /** IMP-04: legal form, representative, register, chamber, outdated § 5 TMG (decision 59a). */
 export function checkImprintDetails(scan) {
   const page = pageOfType(scan, 'imprint');
   if (!page) return [];
   const text = page.facts.bodyText ?? '';
-  const forms = text.replace(COURT_AG, ' ');
+  const forms = text.replace(COURT_AG, ' ').replace(COURT_AG_PLACE, ' ');
   const hint = (title, evidence) => finding('IMP-04', 'hint', title, [url(page)], evidence);
   const results = [];
   if (LEGAL_PERSON.test(forms) && !REPRESENTATIVE.test(text)) {
@@ -43,9 +49,9 @@ export function checkImprintDetails(scan) {
 /** Art. 13 DSGVO elements, recognised by German or English keywords. */
 const POLICY_ELEMENTS = [
   ['controller', /verantwortlich|controller/i],
-  ['legalBasis', /rechtsgrundlage|art\.?\s*6|legal basis/i],
-  ['storagePeriod', /speicherdauer|dauer der speicherung|löschfrist|aufbewahrungsfrist|gelöscht|löschung|storage period|retention|retain/i],
-  ['rights', /auskunft|right of access|right to access/i],
+  ['legalBasis', /rechtsgrundlage|\bart(ikel|\.)?\s*6\b|legal basis/i],
+  ['storagePeriod', /speicherdauer|dauer der speicherung|löschfrist|aufbewahrungsfrist|gelöscht|löschung|storage period|retention|retain|\d+\s*(tage|tagen|wochen|monate|monaten|jahre|jahren)\b[^.]{0,40}(entfernt|gelöscht|gespeichert)|(speicher\w*|gespeichert|aufbewahr\w*)[^.]{0,60}\d+\s*(tag|woche|monat|jahr)/i],
+  ['rights', /auskunft|betroffenenrechte|berichtigung|right of access|right to access/i],
   ['complaint', /beschwerde|aufsichtsbehörde|supervisory authority|complaint/i],
   ['withdrawal', /widerruf|withdraw/i],
 ];

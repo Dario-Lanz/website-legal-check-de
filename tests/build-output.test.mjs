@@ -1,5 +1,5 @@
 // Output of a run: PDFs (and the prompt as .txt) in the run folder, raw data in daten/,
-// no HTML files left, screenshots shrunk, mock-ups embedded as images.
+// no HTML files in the run folder, screenshots shrunk, mock-ups embedded as images.
 
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
@@ -40,7 +40,7 @@ test('results go to the run folder, raw data stays in daten/, no HTML is left', 
     await buildReports(report, '20261107_example', { long: true, kiPrompt: true });
     const top = (await readdir(run)).sort();
     assert.deepEqual(top, ['20261107_example_KI-Prompt.txt', '20261107_example_Langfassung.pdf', 'daten']);
-    assert.ok(!(await readdir(daten)).some((f) => f.endsWith('.html')), 'mock-up page removed after embedding');
+    assert.ok((await readdir(daten)).includes('mock.html'), 'mock-up page stays as source, so a rebuild works');
   } finally {
     await rm(run, { recursive: true, force: true });
   }

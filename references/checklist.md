@@ -39,13 +39,13 @@ The skill never asks the user scope questions. Claude decides from site evidence
 
 ## Automatic checks
 
-Scope of the scanner for all checks: "scanned pages" are the pages that loaded without error and were not skipped. The scan never consents, so every request, cookie and storage entry is "before consent". Link checks match link text or the decoded URL path and query. "Shop signals" (`looksLikeShop`): a page classified as cart, checkout, product or shop, or a button „in den Warenkorb / add to cart / jetzt kaufen / buy now“, or prices on at least two pages. Checks marked "shop only" run only with shop signals.
+Scope of the scanner for all checks: "scanned pages" are the pages that loaded without error and were not skipped. The scan never consents, so every request, cookie and storage entry is "before consent". Link checks match link text or the decoded URL path and query. "Shop signals" (`looksLikeShop`): a page classified as cart, checkout, product or shop, or a button „in den Warenkorb / add to cart / jetzt kaufen / buy now“, or prices on at least two pages. Legal pages (imprint, privacy, withdrawal, terms, accessibility) do not count for prices, and amounts after „Stammkapital“, „Grundkapital“, „Bußgeld…“ or „bis zu“ are not prices. Checks marked "shop only" run only with shop signals.
 
 ### IMP-01 – Impressum link on every page
 - **Obligation:** Provider information easily recognisable, directly reachable, permanently available.
 - **Legal basis:** § 5 Abs. 1 DDG.
 - **Applies to:** Providers of commercial digital services, in practice nearly all business websites incl. ad-financed blogs. Depends on A-2.
-- **Scanner observation:** Per scanned page, a link matching `impressum|imprint|anbieterkennzeichnung|legal notice`. `gap` if missing on any page (title: none at all, or n of m pages), with up to 3 screenshots and 400 characters of footer text; `ok` otherwise.
+- **Scanner observation:** Per scanned page, a link matching Words[imprint-link]: „impressum“, „imprint“, „anbieterkennzeichnung“, „legal notice“. `gap` if missing on any page (title: none at all, or n of m pages), with up to 3 screenshots and 400 characters of footer text; `ok` otherwise. A visible link to the site itself (same registrable domain) is `ok`. A link to another domain (e.g. a group imprint) or one that exists in the page but is not visible (e.g. collapsed footer menu) is found but gives one `hint` „link leads to another domain or is not visible, please check“ (`evidence.otherDomain`, `evidence.notVisible`) instead of `ok`; links to known third-party vendor hosts (services in `data/third-parties.json`, `policies.google.com`) do not count at all. Pages that answer with HTTP status 400 or higher are not counted. An imprint page with such a status is a separate `gap` (also for DSE-01 with the privacy page), and replaces the `ok`. No page scanned → `hint`.
 - **How Claude verifies:** Open the `-fusszeile` screenshots of the listed pages. False positives: icon-only link whose URL has no matching word (e.g. `/legal`), link inside a „Rechtliches“ menu, error or redirect pages in the sample. A link reachable only via an intermediate page is „Bitte prüfen“ (≤ 2 clicks is a convention, not a legal value). Check that the consent dialog does not cover the link (DSK OH Rz. 121).
 - **Default priority:** 1. Move to 2 if missing only on isolated special pages (e.g. a landing page outside the main navigation).
 - **Common reason for a warning letter:** yes.
@@ -58,7 +58,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Name and address of establishment, data for fast electronic contact including an e-mail address, plus (where applicable) legal form, representative, register and number, supervisory authority, regulated-profession data.
 - **Legal basis:** § 5 Abs. 1 Nr. 1–8 DDG.
 - **Applies to:** As IMP-01 (A-2).
-- **Scanner observation:** On the first page classified as imprint: `gap` if the text contains no e-mail pattern, „[at]“, „(at)“ or „@“; `hint` if no postcode + town is recognised (5-digit German, `A-dddd` or 4-digit plus capitalised word). No imprint page → no IMP-02 finding.
+- **Scanner observation:** On the first page classified as imprint: `gap` if the text contains no e-mail pattern or one of Words[imprint-email]: „[at]“, „(at)“, „@“; `hint` if no postcode + town is recognised (5-digit German, `A-dddd`/`CH-dddd` or 4-digit plus capitalised word, not after ©/copyright and not a year 19xx/20xx). No imprint page → no IMP-02 finding.
 - **How Claude verifies:** Read the imprint screenshot. False positives: e-mail shown as image or inserted by script, foreign address formats, imprint split over several pages. Also note visible gaps the scanner does not test: legal form without representative, GmbH/UG without register entry, P.O.-box-only address, contact form instead of e-mail. Legal form, representative, register, chamber and an outdated „§ 5 TMG“ reference are covered by IMP-04.
 - **Default priority:** 1 for missing e-mail or address; 3 for an outdated „§ 5 TMG“ reference.
 - **Common reason for a warning letter:** yes.
@@ -71,7 +71,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** State the USt-IdNr. or Wirtschafts-IdNr. if one is held.
 - **Legal basis:** § 5 Abs. 1 Nr. 6 DDG.
 - **Applies to:** As IMP-01, only if a VAT ID exists (not observable).
-- **Scanner observation:** `hint` if the imprint text has no `umsatzsteuer|ust-id|ust-idnr|vat`.
+- **Scanner observation:** `hint` if the imprint text has none of Words[imprint-vat-id]: „umsatzsteuer“, „ust-id“, „ust-idnr“, „vat“.
 - **How Claude verifies:** Check the imprint screenshot; small businesses may have no VAT ID. Never assume one exists.
 - **Default priority:** 3 („Bitte prüfen“).
 - **Common reason for a warning letter:** yes (as part of the Impressum duty).
@@ -84,7 +84,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Legal persons state legal form and representative; registered providers state register and register number; members of chamber professions state chamber, statutory professional title with the state that awarded it, and the professional rules with where to find them.
 - **Legal basis:** § 5 Abs. 1 Nr. 1, 4, 5 DDG.
 - **Applies to:** As IMP-01 (A-2). Representative: juristische Personen only (GmbH, UG, AG, SE, KGaA, eG, e.V.), as worded in Nr. 1; whether partnerships (KG, OHG) must name one is UNVERIFIED. Register: forms entered in a register by law (also KG, OHG, PartG, e.K.); the GbR is left out because its registration is optional.
-- **Scanner observation:** On the first page classified as imprint, one `hint` each: a legal person's form without `geschäftsführ|vertreten durch|vertretungsberechtigt|vorstand` (evidence `missing: representative`); a registered form without `handelsregister|registergericht|registernummer|…register` or a number like `HRB 123` (`missing: register`); a chamber profession (Rechtsanwalt, Steuerberater, Wirtschaftsprüfer, Notar, Patentanwalt, Arzt, Zahnarzt, Tierarzt, Apotheker, Architekt, Psychotherapeut, beratender Ingenieur) without the word „Kammer“ (`missing: chamber`); a reference to „§ 5 TMG“ or „Telemediengesetz“ (`outdated: § 5 TMG`). „AG“ right after „Registergericht“ or „Amtsgericht“ counts as the court, not as a legal form. No imprint page → no IMP-04 finding.
+- **Scanner observation:** On the first page classified as imprint, one `hint` each: a legal person's form without Words[imprint-representative]: „geschäftsführ“, „vertreten durch“, „vertretungsberechtigt“, „vorstand“ (evidence `missing: representative`); a registered form without Words[imprint-register]: „handelsregister“, „registergericht“, „registernummer“, „HRB 123“ (or another …register or a number like `HRB 123`) (`missing: register`); a chamber profession (Words[imprint-profession]: „Rechtsanwalt“, „Steuerberater“, „Wirtschaftsprüfer“, „Notar“, „Patentanwalt“, „Arzt“, „Facharzt“, „Zahnarzt“, „Tierarzt“, „Apotheker“, „Architekt“, „Innenarchitekt“, „Landschaftsarchitekt“, „Psychotherapeut“, „beratender Ingenieur“) without the word Words[imprint-chamber]: „Kammer“ (`missing: chamber`); a reference to Words[imprint-tmg]: „§ 5 TMG“, „Telemediengesetz“ (`outdated: § 5 TMG`). „AG“ right after „Registergericht“, „Amtsgericht“, „Handelsregister“ or followed by a place and `HRA`/`HRB` counts as the court, not as a legal form. Any „§ <n> … TMG“ counts as outdated, unless the TMG is named as the former law („früher“, „ehemals“, „vormals“, „bisher“, e.g. „§ 5 DDG (früher TMG)“) or the same sentence says it was replaced after the TMG („abgelöst“, „ersetzt“, „aufgehoben“, „außer Kraft“, e.g. „Das TMG wurde abgelöst“). No imprint page → no IMP-04 finding.
 - **How Claude verifies:** Read the imprint screenshot and text. False positives: a legal form named for another company (e.g. host, agency credit), a profession mentioned outside the provider's own data, register data on a linked page, the chamber named only by its abbreviation. For a chamber profession also check title, state and professional rules (Nr. 5 b, c), which the scanner does not test.
 - **Default priority:** 2 for representative, register and chamber; 3 for the outdated „§ 5 TMG“ reference (cosmetic: the duty itself has not changed).
 - **Common reason for a warning letter:** yes (as part of the Impressum duty); the outdated reference alone: uncertain.
@@ -97,7 +97,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Provide the Art. 13 GDPR information when data is collected, in an easily accessible form; server logs with IP addresses alone are personal data processing (DSK OH Rz. 138).
 - **Legal basis:** Art. 12, 13 DSGVO; § 25 Abs. 1 S. 2 TDDDG for cookie processes (DSK OH Rz. 139–140).
 - **Applies to:** Every website processing personal data; no size exemption.
-- **Scanner observation:** As IMP-01 with pattern `datenschutz|privacy`.
+- **Scanner observation:** As IMP-01 with pattern Words[privacy-link]: „datenschutz“, „privacy“.
 - **How Claude verifies:** As IMP-01. A combined page „Impressum & Datenschutz“ counts if the link text names both.
 - **Default priority:** 1.
 - **Common reason for a warning letter:** uncertain (consumer associations may sue, BGH 2025; DSGVO rarely named in the evaluation).
@@ -110,7 +110,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Name recipients, purposes, legal bases, third-country transfers and safeguards, storage period for each processing.
 - **Legal basis:** Art. 13 Abs. 1 lit. c, e, f DSGVO.
 - **Applies to:** Sites embedding third-party services.
-- **Scanner observation:** Privacy page = first page classified as privacy, else a page whose URL or title matches `datenschutz|privacy`. Every third-party request matched to a service in `data/third-parties.json` (consent tools excluded) whose keywords do not appear in the policy text → one `hint` listing the services. Requests of the accept run (fresh browser, click on accept) are included; `evidence.loaded` says per service „before consent“ or „after accept“; `evidence.providers` gives per service the provider's legal entity and country where verified (decision 58a). No policy page → no finding.
+- **Scanner observation:** Privacy page = first page classified as privacy, else a page whose URL path or title (not the host name) matches Words[privacy-page]: „datenschutz“, „privacy“, preferring one that a footer link points to. Every third-party request matched to a service in `data/third-parties.json` (`googletagmanager.com/gtag/js` counts as Google Analytics, or as Google Ads / DoubleClick when its `id` starts with `AW-` or `DC-`; other Tag Manager URLs as Google Tag Manager) (consent tools excluded) whose keywords do not appear in the policy text → one `hint` listing the services. Requests of the accept run (fresh browser, click on accept) are included; `evidence.loaded` says per service „before consent“ or „after accept“; `evidence.providers` gives per service the provider's legal entity and country where verified (decision 58a). No policy page → no finding.
 - **How Claude verifies:** Search the policy text in `scan.json` for the provider under other names (parent company, product name); policies split into sub-pages or PDFs; policy on another host not scanned.
 - **Default priority:** 2. Move to 1 if tracking or advertising services are loaded and the policy names no third party at all.
 - **Common reason for a warning letter:** uncertain.
@@ -123,7 +123,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** The policy states the controller, purposes and legal basis, storage period, the data subject rights, the right to lodge a complaint with a supervisory authority and, where processing relies on consent, the right to withdraw it. A consent tool processes visitor data (consent records) and is named like any other recipient.
 - **Legal basis:** Art. 13 Abs. 1 lit. a, c; Abs. 2 lit. a–d DSGVO.
 - **Applies to:** As DSE-01. The withdrawal notice only where processing relies on consent.
-- **Scanner observation:** On the privacy page (as DSE-02), one `hint` listing the elements whose keywords are missing, German or English (`missing`: `controller`, `legalBasis`, `storagePeriod`, `rights`, `complaint`, `withdrawal`); one `hint` per consent tool from `data/third-parties.json` that loads but is not named in the policy (`consentTools`). Legal pages are read up to 200,000 characters (other pages 30,000). No policy page → no DSE-03 finding.
+- **Scanner observation:** On the privacy page (as DSE-02), one `hint` listing the elements whose keywords are missing, German or English (`missing`: `controller`, `legalBasis`, `storagePeriod`, `rights`, `complaint`, `withdrawal`); one `hint` listing all consent tools from `data/third-parties.json` that load but are not named in the policy (`consentTools`). A legal page that answers with HTTP status 400 or higher is not read. Legal pages are read up to 200,000 characters (other pages 30,000). No policy page → no DSE-03 finding.
 - **How Claude verifies:** Search the policy text in `scan.json` for other wordings (e.g. „Dauer der Aufbewahrung“, „Ihre Rechte“). Policies split into sub-pages or PDFs, or longer than the read limit, may hold the missing parts. A missing withdrawal notice matters only if the site relies on consent (consent dialog, tracking, newsletter).
 - **Default priority:** 2. Move to 3 if only `withdrawal` is missing and no consent-based processing is visible, and for an unnamed consent tool.
 - **Common reason for a warning letter:** uncertain.
@@ -136,7 +136,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** No storing on or reading from the device without consent unless strictly necessary; no loading of consent-requiring third-party content while the banner is unanswered. Pixels, tracking URLs and identifiers are covered, not only cookies.
 - **Legal basis:** § 25 Abs. 1 TDDDG; Art. 6 Abs. 1 DSGVO for the IP transfer; joint controllership for embeds (Art. 26 DSGVO, CJEU C-40/17).
 - **Applies to:** All websites; no size exemption.
-- **Scanner observation:** One `gap` per known service of category analytics, ads, tagmanager, social, video, audio, maps, chat, captcha, booking, forms, newsletter or reviews contacted before consent, with pages, up to 3 request URLs, `service`, `category` and `provider` (legal entity and country where verified, decision 58a).
+- **Scanner observation:** One `gap` per known service of category analytics, ads, tagmanager, social, video, audio, maps, chat, captcha, booking, forms, newsletter or reviews contacted before consent, with pages, up to 3 request URLs, `service`, `category` and `provider` (legal entity and country where verified, decision 58a). Server-side tagging (decision 77a): requests on the site's own domain or a subdomain (first party) to the known Google tag paths `/g/collect`, `/gtag/js` and `/gtm.js` give one `hint` (never a `gap`, no new check ID) with `service` „Google (serverseitig)“, pages and up to 3 request URLs; „Bitte prüfen“: whether the tag really sends data to Google or runs without consent cannot be seen from outside.
 - **How Claude verifies:** Read the request URLs. Typical false positives: request caused by the consent tool itself, a click-to-load placeholder whose preview is self-hosted (then no request appears). CAPTCHA, chat and embedded widgets (booking, forms, newsletter, reviews) may be argued as needed for a requested function; the DSK says storage may begin only when the function is used (Rz. 95) → keep the gap but at Prio 2.
 - **Default priority:** 1 (analytics, ads, tag manager, social, video, audio, maps); 2 (captcha, chat, booking, forms, newsletter, reviews).
 - **Common reason for a warning letter:** uncertain.
@@ -162,7 +162,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Storage on the device before consent only if strictly necessary for a service the user explicitly requested; mislabelling as „essential“ does not make it exempt; same rule with or without personal data.
 - **Legal basis:** § 25 Abs. 1, 2 TDDDG; CJEU C-673/17.
 - **Applies to:** All websites.
-- **Scanner observation:** `gap` for third-party cookies or names matching known tracker patterns (`_ga`, `_gid`, `_fbp`, `_hj`, `_clck`, `_uetsid`, `IDE`, `NID` …) with name, domain, expiry; `hint` for other first-party cookies; `hint` for localStorage keys (up to 40).
+- **Scanner observation:** `gap` for third-party cookies or names matching known tracker patterns (Words[tracker-cookie]: „_ga“, „_gid“, „_fbp“, „_hj“, „_clck“, „_uetsid“, „IDE“, „NID“ …) with name, domain, expiry; `hint` for other first-party cookies; `hint` for localStorage keys (up to 40).
 - **How Claude verifies:** Classify each name. Typical false positives: consent cookie of the consent tool (necessary if it holds no unique ID, DSK OH Rz. 84), session, load-balancer and cart cookies, consent-tool cookies on its own domain flagged as third party. Promote a first-party or localStorage entry to `gap` if it clearly holds an analytics or advertising ID.
 - **Default priority:** 1 for tracker cookies; 3 for first-party cookies and localStorage hints.
 - **Common reason for a warning letter:** uncertain.
@@ -175,8 +175,8 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Where the banner must be dealt with, reject must be offered on the first layer and be equivalent to accept (size, colour, contrast, level); no pre-ticked boxes; Impressum and privacy policy stay reachable.
 - **Legal basis:** § 25 Abs. 1 TDDDG with Art. 4 Nr. 11, Art. 7 DSGVO.
 - **Applies to:** Sites using consent or needing it.
-- **Scanner observation:** First page with a detected banner: `gap` if an accept label (`akzeptieren`, `zustimmen`, `OK`, `verstanden` …) is found but no reject label (`ablehnen`, `nur notwendige`, `verweigern` …); `ok` otherwise (also when neither is recognised). No banner on any page while a TDD tracker or cookie `gap` exists → `gap` „no consent dialog“. Evidence: button labels, 300 characters of banner text, `-cookieabfrage` screenshot.
-- **How Claude verifies:** Always open the `-cookieabfrage` / `-ansicht` screenshots. The scanner does not measure equivalence: reject as a text link while accept is a button, smaller or low-contrast reject, „Einstellungen oder Ablehnen“ leading to a second layer → `gap`. Banners in shadow DOM may be missed: if the screenshot shows a banner, replace „no consent dialog“ by the actual defect. An `ok` with unrecognised labels must be checked visually.
+- **Scanner observation:** First page with a detected banner: `gap` if an accept label (Words[banner-accept]: „akzeptieren“, „zustimmen“, „OK“, „verstanden“ …) is found but no reject label (Words[banner-reject]: „ablehnen“, „nur notwendige“, „verweigern“ …); `hint` „buttons not recognised“ when neither an accept nor a reject label is found; `ok` otherwise. No banner on any page while a TDD tracker or cookie `gap` exists → `gap` „no consent dialog“. Evidence: button labels, 300 characters of banner text, `-cookieabfrage` screenshot.
+- **How Claude verifies:** Always open the `-cookieabfrage` / `-ansicht` screenshots. The scanner does not measure equivalence: reject as a text link while accept is a button, smaller or low-contrast reject, „Einstellungen oder Ablehnen“ leading to a second layer → `gap`. Banners in shadow DOM may be missed: if the screenshot shows a banner, replace „no consent dialog“ by the actual defect. A `hint` with unrecognised labels must be checked visually.
 - **Default priority:** 1.
 - **Common reason for a warning letter:** uncertain (consumer associations: BGH I ZR 7/16, OLG Köln 6 U 80/23).
 - **Report:** Was fehlt: „Die Cookie-Abfrage bietet auf der ersten Ebene keine gleichwertige Möglichkeit zum Ablehnen.“ / „Es werden Dienste geladen, aber es erscheint keine Cookie-Abfrage.“ Vorschrift: „§ 25 Abs. 1 TDDDG; Art. 7 DSGVO“.
@@ -201,7 +201,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** After „reject“ nothing that needs consent may be stored, read or loaded; a reject that changes nothing is no choice at all.
 - **Legal basis:** § 25 Abs. 1 TDDDG (no consent given); Art. 6 Abs. 1 DSGVO for the IP transfer.
 - **Applies to:** Sites with a consent dialog.
-- **Scanner observation:** Reject run (fresh browser, click on the reject control in the banner, then reload and two more pages, content pages before legal pages): one `gap` per known service of the TDD-01 categories contacted after the click whose requests do not all carry Google Consent Mode `gcs=G100` (those go to TDD-07); „(Consent Mode reports consent granted)“ is added when a request carries `gcs` with a granted digit; one `gap` for tracker or third-party cookies newly set after the click; `ok` when nothing of that kind appears; `hint` when a banner exists but no reject control could be clicked (reason in the evidence). Evidence: clicked label, `bannerGone`, pages visited, up to 3 request URLs or the cookie names.
+- **Scanner observation:** Reject run (fresh browser, click on the reject control in the banner, then reload and two more pages, content pages before legal pages): one `gap` per known service of the TDD-01 categories contacted after the click whose requests do not all carry Google Consent Mode `gcs=G100` (those go to TDD-07); „(Consent Mode reports consent granted)“ is added when a request carries `gcs` with a granted digit; one `gap` for tracker or third-party cookies newly set after the click; `ok` when nothing of that kind appears; `hint` when a banner exists but no reject control could be clicked (reason in the evidence). No hint when the run was cut short by the scan's time limit (reason „time limit reached“): the scan note says so. Evidence: clicked label, `bannerGone`, pages visited, up to 3 request URLs or the cookie names.
 - **How Claude verifies:** Check `consentRuns.reject.button`: if the clicked control was not a reject (e.g. „Einstellungen speichern“ with pre-ticked boxes), downgrade to „Bitte prüfen“. `bannerGone: false` means the click may not have registered → „Bitte prüfen“. Requests of the consent tool itself are excluded by category. Typical cause to name in the fix: a tag in the tag manager without a consent trigger, or a hard-coded snippet. The `hint` „not clickable“ also appears for pay-or-consent banners („Pur-Abo“) without a reject control, for reject only on a second layer and for dialogs in closed shadow DOM: open the `-ansicht` screenshot and name the actual case.
 - **Default priority:** 1 (analytics, ads, tag manager, social); 2 (captcha, chat, video, maps); 3 for the `hint` „not clickable“.
 - **Common reason for a warning letter:** uncertain.
@@ -214,7 +214,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** UNVERIFIED. With Consent Mode „advanced“, Google tags send cookieless pings even after reject; the request still reaches Google with the IP address and page data. Whether this needs consent under § 25 TDDDG or a legal basis under Art. 6 DSGVO is not settled by a source fetched so far (decision 48a): report as „Bitte prüfen“ only.
 - **Legal basis:** UNVERIFIED (candidates: § 25 Abs. 1 TDDDG, Art. 6 Abs. 1 DSGVO).
 - **Applies to:** Sites using Google tags with Consent Mode.
-- **Scanner observation:** One `hint` per Google service whose requests after the reject click all carry `gcs=G100`. Decoding of `gcs` (G1 + ad_storage + analytics_storage, 1 = granted, 0 = denied) follows third-party guides; Google's own documentation fetched so far names the parameter without the value table (UNVERIFIED).
+- **Scanner observation:** One `hint` per Google service whose pings (requests that can carry `gcs`, not script loads such as `gtag/js` or `analytics.js`) after the reject click all carry `gcs=G100`. Without any ping, the script loads are judged and count as TDD-06 `gap`. Decoding of `gcs` (G1 + ad_storage + analytics_storage, 1 = granted, 0 = denied) follows third-party guides; Google's own documentation fetched so far names the parameter without the value table (UNVERIFIED).
 - **How Claude verifies:** Read the request URLs; G100 means both storage types denied. Any other value after reject is a TDD-06 `gap`, not this hint.
 - **Default priority:** 3.
 - **Common reason for a warning letter:** uncertain.
@@ -227,7 +227,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** No legal duty of its own. Shopify stops injecting script tags into storefronts on 1 March 2027; since 1 October 2026 apps can no longer create or update them (SRC-95). Legally relevant when the consent tool itself is loaded as a script tag: it disappears while tracking hard-coded in the theme keeps loading, which then violates § 25 Abs. 1 TDDDG. Other apps (reviews, loyalty, affiliate, tracking) stop silently.
 - **Legal basis:** § 25 Abs. 1 TDDDG for the consent case only (consequence, not the script tag itself); otherwise none.
 - **Applies to:** Shopify shops whose pages contain the inline `asyncLoad` script list.
-- **Scanner observation:** Every scanned page: inline script containing `function asyncLoad`, URLs from its `var urls = [...]` list (protocol-relative URLs made absolute, Shopify proxy `cdn.shopify.com/proxy/<hash>/<host>/…` unwrapped). One `hint` for URLs of a consent tool (category consent in `data/third-parties.json` or the words consent, cookie, gdpr, dsgvo, cmp in host or path), one `hint` for all others. Evidence: `scriptTags`, `consentTool`, `cutoff`, `afterCutoff` (scan date on or after 1 March 2027). That Shopify renders script tags this way is observed on 7 live shops (2026-11-09), not documented by Shopify (UNVERIFIED).
+- **Scanner observation:** Every scanned page: inline script containing `function asyncLoad`, URLs from its `var urls = [...]` list (protocol-relative URLs made absolute, Shopify proxy `cdn.shopify.com/proxy/<hash>/<host>/…` unwrapped). One `hint` for URLs of a consent tool (category consent in `data/third-parties.json` or the words Words[script-tag-consent]: „consent“, „cookie“, „gdpr“, „dsgvo“, „cmp“ in host or path), one `hint` for all others. Evidence: `scriptTags`, `consentTool`, `cutoff`, `afterCutoff` (scan date on or after 1 March 2027). That Shopify renders script tags this way is observed on 7 live shops (2026-11-09), not documented by Shopify (UNVERIFIED).
 - **How Claude verifies:** Name the app behind each host (e.g. from the host name or the app's website); drop URLs that are clearly not an app. Consent case: check that the start page's consent dialog is really this tool (screenshot `-cookieabfrage`) and whether TDD-01 services are hard-coded in the theme rather than managed by the tool; if the tool also runs as an app embed, downgrade to priority 3.
 - **Default priority:** 1 for the consent tool; 3 for other apps.
 - **Common reason for a warning letter:** no (only the consequence in the consent case, see TDD-01).
@@ -240,7 +240,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** State-of-the-art technical measures, with recognised encryption named as an example; appropriate security of processing.
 - **Legal basis:** § 19 Abs. 4 TDDDG; Art. 32 Abs. 1 lit. a, Art. 25 DSGVO.
 - **Applies to:** § 19 Abs. 4 for commercially offered digital services (A-2); Art. 32 for every controller.
-- **Scanner observation:** `gap` if the start page ends on `http:` or http:// does not redirect to https://.
+- **Scanner observation:** `gap` if the start page ends on `http:` or http:// does not redirect to https://. Redirects are followed by hand and only to public hosts (not localhost, private or link-local addresses, `.local`/`.internal`/`.lan`/`.home`/`.corp`/`.intranet`, `fritz.box`, or IPv6 forms that embed a private IPv4 address: IPv4-mapped, IPv4-compatible, NAT64, 6to4; site-local `fec0::/10`); a redirect to such a host ends the check as undecided (`null`). The same limit applies to sitemap fetches, redirect hops, the adoption of a forwarded landing host and, in the browser, to every page navigation of the crawl and of the consent runs: a navigation or redirect into a non-public host (other than the typed one) is aborted, the page is recorded as an error and a scan note names the host. Names that only resolve to private addresses by DNS (rebinding, nip.io-style names) are not detected. Service workers are blocked during the scan, so the scan sees a site as a first-time visitor.
 - **How Claude verifies:** Read `transport` in `scan.json`; a timeout on port 80 is not proof of a missing redirect → „Bitte prüfen“.
 - **Default priority:** 1.
 - **Common reason for a warning letter:** no.
@@ -251,7 +251,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 
 ### SEC-02 – Mixed content
 - **Obligation / basis / applies to:** As SEC-01.
-- **Scanner observation:** `gap` if pages loaded over https request resources over `http:` (up to 5 URLs).
+- **Scanner observation:** `gap` if pages loaded over https request resources over `http:` (up to 5 URLs); the main-frame navigation from http to https is not counted; http iframes are.
 - **How Claude verifies:** Check the URLs; requests the browser upgraded or that redirect to https are false positives.
 - **Default priority:** 2.
 - **Common reason for a warning letter:** no.
@@ -275,7 +275,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Inform about conditions, period (14 days) and procedure of the withdrawal right, the model withdrawal form, return costs; or about exceptions. The period does not start before correct information and expires at the latest 12 months + 14 days.
 - **Legal basis:** § 312g, § 355, § 356, § 357 BGB; Art. 246a § 1 Abs. 2, 3 EGBGB; Anlage 1 and 2.
 - **Applies to:** B2C distance contracts (A-1, A-3); exceptions § 312g Abs. 2 (custom-made goods, perishables, sealed hygiene goods …).
-- **Scanner observation:** With shop signals: `gap` if no page links to `widerruf` and no page is classified as withdrawal.
+- **Scanner observation:** With shop signals: `gap` if no page links to Words[withdrawal-link]: „widerruf“ and no page is classified as withdrawal.
 - **How Claude verifies:** Search the AGB text for a withdrawal section; check the label („Rückgaberecht“ instead of Widerruf is itself a finding). If the page exists, note visible defects: missing model form, unfilled placeholders, missing sentence on the online withdrawal function (Anlage 1 design note).
 - **Default priority:** 1 with clear B2C evidence; 2 if B2C is only assumed.
 - **Common reason for a warning letter:** yes.
@@ -288,7 +288,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** For distance contracts concluded via an online interface: a legible, permanently available, prominent function labelled „Vertrag widerrufen“ (or equally unambiguous), asking for name, contract identification and an electronic address, then a confirmation function „Widerruf bestätigen“; acknowledgment on a durable medium with content, date and time. In force since 19.06.2026.
 - **Legal basis:** § 356a BGB (BGBl. 2026 I Nr. 28); Art. 11a Directive 2011/83/EU as inserted by Directive (EU) 2023/2673; information duty Art. 246a § 1 Abs. 2 S. 1 Nr. 1 EGBGB.
 - **Applies to:** B2C distance contracts concluded online where a withdrawal right exists (A-1, A-3); no financial-services exclusion in the text.
-- **Scanner observation:** With shop signals: `hint` if no page text contains `vertrag widerrufen`, `widerruf hier` or `widerruf erklären`.
+- **Scanner observation:** With shop signals: `hint` if no page text contains Words[withdraw-function]: „vertrag widerrufen“, „widerruf hier“, „widerruf erklären“.
 - **How Claude verifies:** Search links in `scan.json` for variants the pattern misses („Vertrag hier widerrufen“, „Bestellung widerrufen“). Only after login: placement may be acceptable (UNVERIFIED) → „Bitte prüfen“. A returns portal („Retoure anmelden“) is likely not a withdrawal declaration (UNVERIFIED). No withdrawal right at all (all goods excepted) → drop.
 - **Default priority:** 1 with clear evidence of online contracts with consumers; 2 if assumed.
 - **Common reason for a warning letter:** uncertain (new duty, no data).
@@ -301,7 +301,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Let the customer retrieve and store the contract terms including AGB at contract conclusion in reproducible form.
 - **Legal basis:** § 312i Abs. 1 S. 1 Nr. 4 BGB.
 - **Applies to:** Electronic commerce, B2C and B2B, where AGB are used (not observable).
-- **Scanner observation:** With shop signals: `hint` if no page links to `agb|geschäftsbedingungen|terms`.
+- **Scanner observation:** With shop signals: `hint` if no page links to Words[terms-link]: „agb“, „geschäftsbedingungen“, „terms“.
 - **How Claude verifies:** Look for other labels („Nutzungsbedingungen“, „Vertragsbedingungen“, „Liefer- und Zahlungsbedingungen“). AGB only in a modal without URL, as image or not printable → finding.
 - **Default priority:** 3; 2 if the checkout refers to AGB that are not retrievable.
 - **Common reason for a warning letter:** yes.
@@ -314,7 +314,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** The button must be easily legible and labelled with nothing but „zahlungspflichtig bestellen“ or an equally unambiguous wording; otherwise no contract comes into existence.
 - **Legal basis:** § 312j Abs. 3, 4 BGB.
 - **Applies to:** B2C contracts obliging payment (A-1, A-3); not individual communication, not financial services.
-- **Scanner observation:** No page classified as checkout → `hint` „not reachable, check manually“. Otherwise visible checkout buttons matching `bestell|kaufen|buy|order|zahlen|abschließen|absenden|submit` whose label does not match the accepted set (whole label exactly `zahlungspflichtig bestellen`, `kostenpflichtig bestellen`, `zahlungspflichtigen Vertrag abschließen`, `kaufen` or `jetzt kaufen`) → `gap` with labels; all accepted → no finding.
+- **Scanner observation:** No page classified as checkout → `hint` „not reachable, check manually“. Otherwise visible checkout buttons matching Words[order-button]: „bestell“, „kaufen“, „buy“, „order“, „zahlen“, „abschließen“, „absenden“, „submit“ whose label does not match the accepted set (whole label exactly Words[order-button-accepted]: „zahlungspflichtig bestellen“, „kostenpflichtig bestellen“, „zahlungspflichtigen Vertrag abschließen“, „kaufen“, „jetzt kaufen“) → `gap` with labels; all accepted → no finding.
 - **How Claude verifies:** Confirm the button is the final one; „Weiter zur Bestellübersicht“ or „Bestellung prüfen“ on an intermediate step are false positives. Labels with extra text such as „Jetzt kaufen und weiter zur Zahlung“ are reported as gap (such a label was enjoined: LG Hildesheim 11 O 5/25, date UNVERIFIED); check the exact label. Equivalence of alternatives beyond the statutory wording is case law (UNVERIFIED).
 - **Default priority:** 1 for a confirmed gap; 3 for the unreachable hint (manual check, see MAN-08).
 - **Common reason for a warning letter:** yes.
@@ -327,7 +327,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** For continuing paid contracts concluded via a website: a permanently available, directly accessible button „Verträge hier kündigen“ leading to a confirmation page (type of termination, identification, contract, date, e-mail) with button „jetzt kündigen“; confirmation in text form. The confirmation page may not contain alternatives to cancellation (BGH I ZR 200/25). Sanction: termination at any time.
 - **Legal basis:** § 312k BGB.
 - **Applies to:** B2C subscriptions concluded online (A-1, A-6); not financial services.
-- **Scanner observation:** With shop signals: `hint` if page text contains subscription wording (`Abo`, `Abonnement`, `Mitgliedschaft`, `/Monat`, `Mindestlaufzeit` …) and nowhere `verträge hier kündigen|vertrag hier kündigen|kündigungsbutton`.
+- **Scanner observation:** With shop signals: `hint` if page text contains subscription wording (Words[subscription]: „Abo“, „Abonnement“, „Mitgliedschaft“, „/Monat“, „Mindestlaufzeit“ …) and nowhere Words[cancel-button]: „verträge hier kündigen“, „vertrag hier kündigen“, „kündigungsbutton“.
 - **How Claude verifies:** Search links for „kündig“. False positives: instalment prices „/Monat“, subscriptions only offline. A login gate before the button is a strong signal (case law UNVERIFIED). Labels like „Kündigung“ in an FAQ do not meet the wording.
 - **Default priority:** 1 when an online-concluded subscription is evident and no button exists; 3 while unclear.
 - **Common reason for a warning letter:** yes.
@@ -340,7 +340,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** State total prices; in distance selling state that prices include VAT and other components.
 - **Legal basis:** § 3 Abs. 1, § 6 Abs. 1 PAngV.
 - **Applies to:** B2C offers and price advertising (A-1).
-- **Scanner observation:** `gap` for pages with prices whose whole text has neither a VAT note („inkl. MwSt.“ …) nor a net note; `hint` for pages with only net notes („zzgl. MwSt.“, „netto“) – allowed only for B2B-only sites.
+- **Scanner observation:** `gap` for pages with prices whose whole text has neither a VAT note (Words[vat-note]: „inkl. MwSt.“, „Alle Preise enthalten die MwSt.“ …) nor a net note (a „MwSt.“ followed by „inkl.“ and more words, as in „zzgl. MwSt. inkl. Versand“, is no inclusive note: the reversed form needs „enthalten“, „inklusive“ or „inkl.“ at the end of the phrase, and never after „zzgl.“ or „zuzüglich“); `hint` for pages with only net notes (Words[net-note]: „zzgl. MwSt.“, „netto MwSt.“) – allowed only for B2B-only sites.
 - **How Claude verifies:** Check the screenshot near the price; a note elsewhere on the page may not be close enough. False positives: small-business note „gemäß § 19 UStG keine MwSt“ (acceptable variant), salaries in job ads, „Preis auf Anfrage“. Net-only with an explicit B2B-only statement → drop.
 - **Default priority:** 1 (gap); 2 (net-only hint, depends on A-1).
 - **Common reason for a warning letter:** yes.
@@ -353,7 +353,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** State whether shipping or delivery costs apply and their amount where calculable.
 - **Legal basis:** § 6 Abs. 1, 2 PAngV.
 - **Applies to:** B2C distance selling of goods (A-1).
-- **Scanner observation:** `hint` for pages with prices whose text lacks `versand|lieferkosten|shipping`.
+- **Scanner observation:** `hint` for pages with prices whose text lacks Words[shipping-note]: „versand“, „lieferkosten“, „shipping“.
 - **How Claude verifies:** Services and downloads without shipping are false positives; check whether the linked shipping page names amounts.
 - **Default priority:** 2; 1 if goods are shipped and no shipping information exists anywhere.
 - **Common reason for a warning letter:** yes.
@@ -379,7 +379,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Inform whether the trader is willing or obliged to take part in proceedings before a consumer arbitration body; if so, name the body with address and website; on the website and with the AGB. Exemption from Nr. 1 for traders with ≤ 10 employees.
 - **Legal basis:** § 36 Abs. 1–3 VSBG.
 - **Applies to:** B2C traders with a website or AGB (A-1, A-4).
-- **Scanner observation:** `hint` if no page text contains `streitbeilegung|schlichtungsstelle|verbraucherschlichtung`.
+- **Scanner observation:** `hint` if no page text contains Words[dispute-notice]: „streitbeilegung“, „schlichtungsstelle“, „verbraucherschlichtung“.
 - **How Claude verifies:** The statement may sit in an AGB PDF or a page outside the sample.
 - **Default priority:** 2 (depends on A-4).
 - **Common reason for a warning letter:** uncertain.
@@ -392,7 +392,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Online offers must show manufacturer name and postal and electronic address (non-EU manufacturer: EU responsible person), product identification incl. picture and type, warnings and safety information.
 - **Legal basis:** Art. 19 VO (EU) 2023/988 (GPSR), applicable since 13.12.2024.
 - **Applies to:** Online offers of consumer products; not services; sector rules may take precedence (not analysed).
-- **Scanner observation:** `hint` for product pages whose text lacks `hersteller|manufacturer|marke|brand`.
+- **Scanner observation:** `hint` for product pages whose text lacks Words[manufacturer]: „hersteller“, „manufacturer“, „marke“, „brand“.
 - **How Claude verifies:** Information in a tab loaded on click, other words („Inverkehrbringer“). „Marke“ alone is not an address → still a gap.
 - **Default priority:** 2.
 - **Common reason for a warning letter:** uncertain (reports of warnings, no official data).
@@ -405,7 +405,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** E-mail advertising needs prior express consent; existing-customer exception only under all conditions of § 7 Abs. 3 UWG; consent must be demonstrable; no pre-ticked box.
 - **Legal basis:** § 7 Abs. 2 Nr. 2, Abs. 3 UWG; Art. 7 DSGVO.
 - **Applies to:** Sites with newsletter or marketing opt-ins.
-- **Scanner observation:** `hint` for pages with a form containing an e-mail field and the word „newsletter“. The scan never submits forms.
+- **Scanner observation:** `hint` for pages with a form containing an e-mail field and the word Words[newsletter]: „newsletter“. The scan never submits forms.
 - **How Claude verifies:** Look at the form screenshot: pre-ticked checkbox, missing withdrawal note or privacy link → `gap`. Double opt-in cannot be seen from outside (MAN-04); DOI case law UNVERIFIED.
 - **Default priority:** 3; 1 if a pre-ticked marketing box is visible.
 - **Common reason for a warning letter:** yes.
@@ -418,7 +418,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Since 27.09.2026: generic environmental claims without proof of recognised excellent environmental performance, claims based on GHG offsetting that a product is neutral/reduced/positive, self-made sustainability labels and claims about the whole product when only one aspect is meant are always unfair; future claims need a verifiable implementation plan; an ambiguous term must be explained in the advertisement itself (BGH I ZR 98/23).
 - **Legal basis:** § 2 Abs. 2, § 5 Abs. 1–3 UWG; UWG Anhang Nr. 2a, 4a–4c, 10a, 23d; Directive (EU) 2024/825.
 - **Applies to:** B2C commercial communication (A-1); runs without shop signals.
-- **Scanner observation:** `hint` for pages whose text matches `klimaneutral`, `CO2-neutral`, `klimapositiv`, `umweltfreundlich`, `nachhaltig`, `ökologisch`, `grüne Energie/Produkt` (up to 5 claims).
+- **Scanner observation:** `hint` for pages whose text matches Words[green-claim]: „klimaneutral“, „CO2-neutral“, „klimapositiv“, „umweltfreundlich“, „nachhaltig“, „ökologisch“, „grüne Energie“, „grüne Produkte“ (up to 5 claims).
 - **How Claude verifies:** Read the context: „nachhaltig“ in a non-environmental sense is a false positive; a concrete specification on the same medium lowers the risk; offsetting-based „klimaneutral“ product claim → `gap`.
 - **Default priority:** 2; 1 for offsetting-based neutrality claims or self-made labels; 3 for specified claims.
 - **Common reason for a warning letter:** yes.
@@ -444,7 +444,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Publish, in the AGB or otherwise clearly perceivable: description of the service, explanations of how it works, how it meets the requirements, and the competent market surveillance authority (MLBF).
 - **Legal basis:** § 14 Abs. 1 Nr. 2 BFSG, Anlage 3; formal non-conformity § 30 Abs. 2 BFSG.
 - **Applies to:** As BF-01 (A-1, A-3, A-4).
-- **Scanner observation:** With shop signals: `hint` if no page links to `barrierefreiheit|accessibility`.
+- **Scanner observation:** With shop signals: `hint` if no page links to Words[accessibility-link]: „barrierefreiheit“, „accessibility“.
 - **How Claude verifies:** Search the AGB text (Anlage 3 allows the AGB); check whether the authority is named.
 - **Default priority:** 2.
 - **Common reason for a warning letter:** uncertain.
@@ -457,7 +457,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Persons interacting with an AI system must be informed, at the latest at the first interaction, clearly and accessibly, unless obvious. Applies from 02.08.2026; not postponed by Regulation (EU) 2026/1744.
 - **Legal basis:** Art. 50 Abs. 1, 5 VO (EU) 2024/1689 (KI-VO).
 - **Applies to:** Formally the provider; the site operator embedding a chatbot is typically deployer, liability split UNVERIFIED → recommend the notice anyway (A-7).
-- **Scanner observation:** `hint` if requests go to a known chat service or page text matches `chatbot|ki-assistent|ai assistant|virtuelle Assistentin|chat with us|chatten sie`. The scanner does not open the widget.
+- **Scanner observation:** `hint` if requests go to a known chat service or page text matches Words[chat-text]: „chatbot“, „ki-assistent“, „ai assistant“, „virtuelle Assistentin“, „chat with us“, „chatten sie“. The scanner does not open the widget.
 - **How Claude verifies:** Identify vendor and wording; human live chat is a false positive. The first message is not visible → usually „Bitte prüfen“.
 - **Default priority:** 3; 2 if an AI chatbot is evident and no notice is visible.
 - **Common reason for a warning letter:** no.
@@ -470,8 +470,8 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Obligation:** Hosting services need an easy, electronic mechanism to report allegedly illegal content (reasons, exact URL, name and e-mail, good-faith statement), confirmation of receipt, diligent decisions; no micro/small exemption.
 - **Legal basis:** Art. 16 DSA (VO (EU) 2022/2065); hosting definition Art. 3 lit. g iii; authority Bundesnetzagentur (§ 12 DDG).
 - **Applies to:** Hosting services (A-5).
-- **Scanner observation:** `hint` for pages with a form containing a file upload, or a textarea plus `kommentar|comment|bewertung schreiben|beitrag verfassen|antworten`.
-- **How Claude verifies:** Contact forms whose text says „wir antworten …“ and non-public application uploads are typical false positives. For real public UGC, look for „Inhalt melden“ near items.
+- **Scanner observation:** `hint` for pages with a form containing a file upload, or a textarea plus Words[comment-text]: „kommentar“, „comment“, „bewertung schreiben“, „beitrag verfassen“.
+- **How Claude verifies:** Non-public application uploads are typical false positives. For real public UGC, look for „Inhalt melden“ near items.
 - **Default priority:** 2 (depends on A-5); 3 if the UGC character stays unclear.
 - **Common reason for a warning letter:** no.
 - **Report:** Was fehlt: „Nutzer können Inhalte veröffentlichen, aber es wurde kein Meldeweg für rechtswidrige Inhalte gefunden.“ Vorschrift: „Art. 16 DSA“.

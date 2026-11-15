@@ -138,9 +138,12 @@ describe('consent tool that keeps tracking after reject', () => {
 
   test('after accept: services missing in the privacy policy are listed with when they loaded', () => {
     const policy = result.checks.findings.find((f) => f.check === 'DSE-02');
-    assert.deepEqual(policy.evidence.services.sort(), ['Google Tag Manager', 'Meta Pixel / Facebook']);
-    assert.equal(policy.evidence.loaded['Google Tag Manager'], 'after accept');
-    assert.equal(policy.evidence.providers['Google Tag Manager'].entity, 'Google Ireland Limited');
+    // gtag/js is Google Analytics (named in the policy), not Google Tag Manager (review finding 9).
+    assert.deepEqual(policy.evidence.services.sort(), ['Meta Pixel / Facebook']);
+    assert.equal(policy.evidence.loaded['Meta Pixel / Facebook'], 'after accept');
+    assert.deepEqual(policy.evidence.providers['Meta Pixel / Facebook'], {
+      entity: 'Meta Platforms Ireland Limited', country: 'Irland', source: 'https://www.facebook.com/legal/terms/businesstools',
+    });
   });
 });
 

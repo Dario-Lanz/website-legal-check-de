@@ -13,7 +13,7 @@ const URL_LIST = /var\s+urls\s*=\s*(\[[\s\S]*?\])\s*;/;
 /** Shopify's proxy: //cdn.shopify.com/proxy/<hash>/<host>/<path>. */
 const SHOPIFY_PROXY = /^https:\/\/cdn\.shopify\.com\/proxy\/[0-9a-f]+\/(.+)$/i;
 /** Consent apps not in data/third-parties.json are recognised by words in host or path. */
-const CONSENT_WORDS = /consent|cookie|gdpr|dsgvo|\bcmp\b/i;
+export const CONSENT_WORDS = /consent|cookie|gdpr|dsgvo|\bcmp\b/i;
 
 function normalise(raw) {
   const absolute = raw.startsWith('//') ? `https:${raw}` : raw;

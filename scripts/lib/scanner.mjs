@@ -6,15 +6,19 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { canonicalPageUrl, isSameSite, isThirdParty, normalizeStartUrl, NON_PAGE_EXTENSIONS } from './url.mjs';
-import { classifyPage, LEGAL_TYPES, selectDeepCheckUrls } from './page-types.mjs';
+import { classifyPage, classifyVisitedPage, LEGAL_TYPES, selectDeepCheckUrls } from './page-types.mjs';
 import { discoverSitemapUrls } from './sitemap.mjs';
+import { isPublicHost } from './public-host.mjs';
 import { matchService } from './third-parties.mjs';
 import { checkTransport } from './transport.mjs';
 import { linkScreenshots, pageFingerprint } from './reuse.mjs';
 import { visitPage } from './visit-page.mjs';
 import { consentRunUrls, runConsentChoices } from './consent-runs.mjs';
+import { closeQuietly } from './timeout.mjs';
+import { blockInternalNavigations, isMainFrameNavigation } from './navigation-guard.mjs';
 
-const CONTEXT_OPTIONS = { bypassCSP: true, locale: 'de-DE', viewport: { width: 1366, height: 900 } };
+// serviceWorkers 'block': the scan sees the site as a first-time visitor, and no worker can answer requests the guard never sees.
+const CONTEXT_OPTIONS = { bypassCSP: true, locale: 'de-DE', viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' };
 
 export const DEFAULTS = {
   maxNavPages: 40, maxExtraPages: 20, deepPerType: 3, deep: true,
@@ -22,88 +26,189 @@ export const DEFAULTS = {
 };
 
 /**
- * @param {{startUrl: string, outDir: string, launchArgs?: string[], log?: (msg: string) => void} & Partial<typeof DEFAULTS>} options
+ * @param {{startUrl: string, outDir: string, launchArgs?: string[], log?: (msg: string) => void, allowInternalHosts?: boolean} & Partial<typeof DEFAULTS>} options
+ *   allowInternalHosts is for tests that serve local hosts; by default the scanner follows redirects and landing hosts to public hosts only.
  * @returns {Promise<object>} the scan result (also written to outDir/scan.json)
  */
 export async function scanSite(options) {
-  const opts = { ...DEFAULTS, log: () => {}, launchArgs: [], ...options };
+  const opts = { ...DEFAULTS, log: () => {}, launchArgs: [], allowInternalHosts: false, ...options };
   const start = normalizeStartUrl(opts.startUrl);
   const evidenceDir = path.join(opts.outDir, 'belege');
   await mkdir(evidenceDir, { recursive: true });
 
   const startedAt = Date.now();
-  const transport = await checkTransport(start);
+  const transport = await checkTransport(start, { allowInternal: opts.allowInternalHosts });
   const browser = await chromium.launch({ args: opts.launchArgs });
-  const state = { pages: [], requests: [], cookieFirstSeen: new Map(), visited: new Set(), notes: [] };
+  // `site` is the first-party base: the typed host until the start page shows where the site really lives.
+  const state = { pages: [], requests: [], cookieFirstSeen: new Map(), visited: new Set(), blocked: new Set(), notes: [], site: start, startedAt, timedOut: false };
+  const watchdog = startWatchdog(browser, state, opts, startedAt);
   try {
-    const context = await browser.newContext(CONTEXT_OPTIONS);
-    context.on('request', (request) => recordRequest(state, request.url(), request.resourceType(), start));
-    const crawl = (url) => crawlPage(context, url, state, opts, evidenceDir, startedAt);
-
-    let deepCheck;
-    if (opts.reuseFrom) {
-      state.reuse = await reuseEarlierScan(context, state, opts, evidenceDir);
-      deepCheck = { skipped: true, decision: 'Earlier scan reused; pages of that scan re-checked.' };
-    } else {
-      await crawl(start.toString());
-      const firstPage = state.pages[0];
-      if (firstPage?.error) throw new Error(`Start page not reachable: ${firstPage.error}`);
-      for (const url of sampleTargets(state, start, opts)) await crawl(url);
-      deepCheck = opts.deep ? await runDeepCheck(state, start, opts, crawl) : { skipped: true };
-    }
-
-    const cookies = (await context.cookies()).map((c) => describeCookie(c, start, state.cookieFirstSeen));
-    await context.close();
-    const pageUrls = consentRunUrls(state.pages);
-    opts.log('Consent choices: reject and accept');
-    const consentRuns = pageUrls.length > 0
-      ? await runConsentChoices(browser, start, pageUrls, { contextOptions: CONTEXT_OPTIONS, timeoutMs: opts.pageTimeoutMs, settleMs: opts.settleMs })
-      : null;
-    const result = buildResult({ start, transport, state, cookies, deepCheck, consentRuns, startedAt });
-    await writeFile(path.join(opts.outDir, 'scan.json'), JSON.stringify(result, null, 2));
-    return result;
+    await blockInternalNavigations(browser, {
+      typedHost: start.hostname, allowInternal: opts.allowInternalHosts,
+      onBlocked: (url) => blockedUrl(state, url),
+    });
+    return await runScan(browser, { start, transport, state, opts, evidenceDir, startedAt });
   } finally {
-    await browser.close();
+    clearTimeout(watchdog);
+    await closeQuietly(browser);
   }
 }
+
+async function runScan(browser, { start, transport, state, opts, evidenceDir, startedAt }) {
+  const context = await browser.newContext(CONTEXT_OPTIONS);
+  context.on('request', (request) => recordRequest(state, request.url(), request.resourceType(), isMainFrameNavigation(request)));
+  const deepCheck = await crawlSite(context, { start, state, opts, evidenceDir });
+  const cookies = await readCookies(context, state);
+  await closeQuietly(context);
+  const consentRuns = await consentChoiceRuns(browser, state, opts);
+  // The 'request' event can come before or after the guard's verdict: drop blocked URLs for good here.
+  dropBlockedRequests(state, consentRuns);
+  const result = buildResult({ start, transport, state, cookies, deepCheck, consentRuns, startedAt });
+  await writeFile(path.join(opts.outDir, 'scan.json'), JSON.stringify(result, null, 2));
+  return result;
+}
+
+/** Sample the site (or re-check an earlier scan) and run the deep check; returns its summary. */
+async function crawlSite(context, { start, state, opts, evidenceDir }) {
+  if (opts.reuseFrom) {
+    state.reuse = await reuseEarlierScan(context, state, opts, evidenceDir, start);
+    return { skipped: true, decision: 'Earlier scan reused; pages of that scan re-checked.' };
+  }
+  const crawl = (url) => crawlPage(context, url, state, opts, evidenceDir);
+  await crawl(start.toString());
+  const firstPage = state.pages[0];
+  // When the time limit ended the start page, the partial result is still written (with the note).
+  if (firstPage?.error && !state.timedOut) throw new Error(startPageError(firstPage, state));
+  adoptLandingHost(state, firstPage, opts);
+  for (const url of sampleTargets(state, opts)) await crawl(url);
+  return opts.deep && !state.timedOut ? runDeepCheck(state, opts, crawl) : { skipped: true };
+}
+
+/** A navigation the guard refused: remember the URL (the 'request' event fires for it too) and note it. */
+function blockedUrl(state, url) {
+  state.blocked.add(url);
+  let host = url;
+  try {
+    host = new URL(url).hostname;
+  } catch { /* keep the raw text */ }
+  state.notes.push(`Navigation to ${host} blocked: not a public host.`);
+}
+
+/** Message for an unreachable start page; names the last blocked navigation when there was one. */
+function startPageError(firstPage, state) {
+  const blocked = state.notes.findLast((note) => /blocked: not a public host/.test(note));
+  return `Start page not reachable: ${firstPage.error}${blocked ? ` (${blocked})` : ''}`;
+}
+
+/** Hard stop: closing the browser ends every pending call, including one stuck in a blocked page. */
+function startWatchdog(browser, state, opts, startedAt) {
+  const remaining = Math.max(0, opts.maxTotalMs - (Date.now() - startedAt));
+  return setTimeout(() => {
+    state.timedOut = true;
+    state.notes.push('Time limit reached: the browser was closed, the scan is incomplete.');
+    browser.close().catch(() => {});
+  }, remaining);
+}
+
+async function readCookies(context, state) {
+  try {
+    return (await context.cookies()).map((c) => describeCookie(c, state.site, state.cookieFirstSeen));
+  } catch (error) {
+    if (!state.timedOut) throw error;
+    return [];
+  }
+}
+
+async function consentChoiceRuns(browser, state, opts) {
+  const pageUrls = state.timedOut ? [] : consentRunUrls(state.pages);
+  if (pageUrls.length === 0) return null;
+  opts.log('Consent choices: reject and accept');
+  try {
+    return await runConsentChoices(browser, state.site, pageUrls, {
+      contextOptions: CONTEXT_OPTIONS, timeoutMs: opts.pageTimeoutMs, settleMs: opts.settleMs, shouldStop: () => state.timedOut,
+    });
+  } catch (error) {
+    if (!state.timedOut) throw error;
+    return null; // the watchdog closed the browser during the runs; the note is already in state.notes
+  }
+}
+
+/**
+ * The typed host may only forward to the real site (firma.de -> firma-gmbh.de). When the start page
+ * ends on another registrable domain, that domain is the first party; requests seen so far are re-judged.
+ * Only public hosts are adopted (never localhost or private addresses).
+ */
+function adoptLandingHost(state, firstPage, opts) {
+  let landing;
+  try {
+    landing = new URL(firstPage?.finalUrl);
+  } catch {
+    return;
+  }
+  if (!isThirdParty(landing.href, state.site.hostname)) return;
+  if (!opts.allowInternalHosts && !isPublicHost(landing.hostname)) {
+    state.notes.push(`Start page forwards to ${landing.hostname}, which is not a public host; it is not followed as the website.`);
+    return;
+  }
+  state.notes.push(`Start page forwards to ${landing.hostname}; that domain is treated as the website instead of ${state.site.hostname}.`);
+  state.site = landing;
+  for (const request of state.requests) request.thirdParty = isThirdParty(request.url, landing.hostname);
+}
+
+const timeIsUp = (state, opts) => state.timedOut || Date.now() - state.startedAt >= opts.maxTotalMs;
 
 /**
  * Re-check every page of an earlier scan without screenshots; take unchanged pages over
  * (data and screenshots), scan changed or previously failed pages fully again.
  */
-async function reuseEarlierScan(context, state, opts, evidenceDir) {
+async function reuseEarlierScan(context, state, opts, evidenceDir, start) {
   const oldDataDir = path.join(opts.reuseFrom, 'daten');
   const old = JSON.parse(await readFile(path.join(oldDataDir, 'scan.json'), 'utf8'));
-  const reuse = { from: path.basename(opts.reuseFrom), scannedAt: old.scannedAt, unchangedPages: [], changedPages: [] };
-  const visitOptions = (index) => ({ index, evidenceDir, timeoutMs: opts.pageTimeoutMs, settleMs: opts.settleMs });
-  for (const oldPage of old.pages) {
-    state.currentIndex = oldPage.index;
-    state.visited.add(oldPage.url);
-    opts.log(`[${oldPage.index}] ${oldPage.url} (re-check)`);
-    const mark = state.requests.length;
-    const quick = oldPage.error || oldPage.skipped ? null : await visitPage(context, oldPage.url, { ...visitOptions(oldPage.index), light: true });
-    const same = quick && !quick.error
-      && pageFingerprint(quick.facts, state.requests.slice(mark)) === pageFingerprint(oldPage.facts, old.requests.filter((r) => r.page === oldPage.index));
-    if (same) {
-      state.pages.push({ ...oldPage, screenshots: linkScreenshots(oldPage.screenshots, oldDataDir, path.dirname(evidenceDir)) });
-      reuse.unchangedPages.push(oldPage.url);
-    } else {
-      state.requests.splice(mark);
-      const full = await visitPage(context, oldPage.url, visitOptions(oldPage.index));
-      full.pageType = classifyPage(full.finalUrl ?? oldPage.url, full.facts?.title);
-      state.pages.push(full);
-      reuse.changedPages.push(oldPage.url);
-    }
-    await noteNewCookies(context, state);
-    await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
+  if (!old.host || !isSameSite(`https://${old.host}/`, start)) {
+    throw new Error(`Earlier scan belongs to ${old.host ?? 'an unknown site'}, not to ${start.hostname}.`);
   }
+  adoptLandingHost(state, old.pages?.[0], opts);
+  const reuse = { from: path.basename(opts.reuseFrom), scannedAt: old.scannedAt, unchangedPages: [], changedPages: [] };
+  for (const oldPage of old.pages ?? []) {
+    if (timeIsUp(state, opts)) {
+      state.notes.push(`Time limit reached, not re-checked: ${oldPage.url}`);
+      continue;
+    }
+    await recheckPage(context, state, opts, evidenceDir, { old, oldDataDir, oldPage, reuse });
+  }
+  const firstPage = state.pages[0];
+  if (!firstPage) throw new Error('Earlier scan: no page could be re-checked.');
+  if (firstPage.error && !state.timedOut) throw new Error(startPageError(firstPage, state));
   return reuse;
 }
 
-async function crawlPage(context, url, state, opts, evidenceDir, startedAt) {
+async function recheckPage(context, state, opts, evidenceDir, { old, oldDataDir, oldPage, reuse }) {
+  const visitOptions = (index) => ({ index, evidenceDir, timeoutMs: opts.pageTimeoutMs, settleMs: opts.settleMs });
+  state.currentIndex = oldPage.index;
+  state.visited.add(oldPage.url);
+  opts.log(`[${oldPage.index}] ${oldPage.url} (re-check)`);
+  const mark = state.requests.length;
+  const quick = oldPage.error || oldPage.skipped ? null : await visitPage(context, oldPage.url, { ...visitOptions(oldPage.index), light: true });
+  const same = quick && !quick.error
+    && pageFingerprint(quick.facts, state.requests.slice(mark)) === pageFingerprint(oldPage.facts, old.requests.filter((r) => r.page === oldPage.index));
+  if (same) {
+    state.pages.push({ ...oldPage, screenshots: linkScreenshots(oldPage.screenshots, oldDataDir, path.dirname(evidenceDir)) });
+    reuse.unchangedPages.push(oldPage.url);
+  } else {
+    state.requests.splice(mark);
+    const full = await visitPage(context, oldPage.url, visitOptions(oldPage.index));
+    full.pageType = classifyVisitedPage(full.finalUrl ?? oldPage.url, full.facts?.title);
+    state.pages.push(full);
+    reuse.changedPages.push(oldPage.url);
+  }
+  await noteNewCookies(context, state);
+  await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
+}
+
+async function crawlPage(context, url, state, opts, evidenceDir) {
   const canonical = canonicalPageUrl(url, url);
   if (!canonical || state.visited.has(canonical)) return;
-  if (Date.now() - startedAt > opts.maxTotalMs) {
+  if (timeIsUp(state, opts)) {
     state.notes.push(`Time limit reached, skipped: ${canonical}`);
     return;
   }
@@ -113,24 +218,31 @@ async function crawlPage(context, url, state, opts, evidenceDir, startedAt) {
   const result = await visitPage(context, canonical, {
     index: state.currentIndex, evidenceDir, timeoutMs: opts.pageTimeoutMs, settleMs: opts.settleMs,
   });
-  result.pageType = classifyPage(result.finalUrl ?? canonical, result.facts?.title);
+  result.pageType = classifyVisitedPage(result.finalUrl ?? canonical, result.facts?.title);
   if (result.finalUrl) state.visited.add(canonicalPageUrl(result.finalUrl, result.finalUrl));
   state.pages.push(result);
   await noteNewCookies(context, state);
   await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
 }
 
-function recordRequest(state, url, resourceType, start) {
-  if (!/^https?:/i.test(url)) return;
+function recordRequest(state, url, resourceType, mainFrame = false) {
+  if (!/^https?:/i.test(url) || state.blocked.has(url)) return; // blocked requests are noted, not recorded (see also runScan)
   const service = matchService(url);
   state.requests.push({
-    page: state.currentIndex ?? 1, url: url.slice(0, 500), resourceType,
-    thirdParty: isThirdParty(url, start.hostname), service: service?.name ?? null, category: service?.category ?? null,
+    page: state.currentIndex ?? 1, url: url.slice(0, 500), resourceType, mainFrame,
+    thirdParty: isThirdParty(url, state.site.hostname), service: service?.name ?? null, category: service?.category ?? null,
   });
 }
 
 async function noteNewCookies(context, state) {
-  for (const cookie of await context.cookies()) {
+  let cookies;
+  try {
+    cookies = await context.cookies();
+  } catch (error) {
+    if (state.timedOut) return; // the watchdog closed the browser
+    throw error;
+  }
+  for (const cookie of cookies) {
     const key = `${cookie.name}@${cookie.domain}`;
     if (!state.cookieFirstSeen.has(key)) state.cookieFirstSeen.set(key, state.currentIndex);
   }
@@ -148,9 +260,9 @@ function describeCookie(cookie, start, firstSeen) {
 }
 
 /** Header/footer/nav links and legal pages first, then other internal links. */
-function sampleTargets(state, start, opts) {
+function sampleTargets(state, opts) {
   const links = state.pages[0]?.facts?.links ?? [];
-  const usable = links.filter((l) => isSameSite(l.href, start) && !NON_PAGE_EXTENSIONS.test(new URL(l.href).pathname));
+  const usable = links.filter((l) => isSameSite(l.href, state.site) && !NON_PAGE_EXTENSIONS.test(new URL(l.href).pathname));
   const nav = unique(usable.filter((l) => l.region !== 'main' || LEGAL_TYPES.includes(classifyPage(l.href, l.text))));
   const other = unique(usable.filter((l) => l.region === 'main')).filter((u) => !nav.includes(u));
   return [...nav.slice(0, opts.maxNavPages), ...other.slice(0, opts.maxExtraPages)];
@@ -160,10 +272,10 @@ function unique(links) {
   return [...new Set(links.map((l) => canonicalPageUrl(l.href, l.href)).filter(Boolean))];
 }
 
-async function runDeepCheck(state, start, opts, crawl) {
-  const sitemap = await discoverSitemapUrls(start);
+async function runDeepCheck(state, opts, crawl) {
+  const sitemap = await discoverSitemapUrls(state.site, { allowInternal: opts.allowInternalHosts });
   const linked = state.pages.flatMap((p) => p.facts?.links ?? [])
-    .filter((l) => isSameSite(l.href, start))
+    .filter((l) => isSameSite(l.href, state.site))
     .map((l) => ({ url: canonicalPageUrl(l.href, l.href), text: l.text })).filter((c) => c.url);
   const candidates = [...linked, ...sitemap.urls.map((u) => ({ url: canonicalPageUrl(u, u) })).filter((c) => c.url)];
   const coveredTypes = new Set(state.pages.filter((p) => !p.error).map((p) => p.pageType));
@@ -184,4 +296,13 @@ function buildResult({ start, transport, state, cookies, deepCheck, consentRuns,
     transport, deepCheck, reuse: state.reuse ?? null, notes: state.notes, cookies,
     requests: state.requests, pages: state.pages, consentRuns,
   };
+}
+
+/** Remove navigations the guard blocked from the main scan and from both consent runs. */
+export function dropBlockedRequests(state, consentRuns) {
+  const keep = (requests) => requests.filter((r) => !state.blocked.has(r.url));
+  state.requests = keep(state.requests);
+  for (const run of [consentRuns?.reject, consentRuns?.accept]) {
+    if (Array.isArray(run?.requests)) run.requests = keep(run.requests);
+  }
 }

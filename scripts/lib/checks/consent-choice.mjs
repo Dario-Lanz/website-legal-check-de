@@ -4,6 +4,7 @@
 
 import { TRACKER_COOKIE, TRACKING_CATEGORIES } from './consent.mjs';
 import { finding, okPages } from './helpers.mjs';
+import { TIME_LIMIT_REASON } from '../consent-runs.mjs';
 
 const MAX_EXAMPLES = 3;
 /** gcs=G1<ad_storage><analytics_storage>, 1 = granted, 0 = denied. */
@@ -22,6 +23,17 @@ export function consentModeState(requestUrl) {
   return match[1] === '0' && match[2] === '0' ? 'denied' : 'granted';
 }
 
+/** Scripts and libraries cannot carry gcs; only pings (collect, conversion endpoints) can. */
+const canCarryGcs = (r) => r.resourceType !== 'script' && !/(\.js|\/gtag\/js)$/i.test(pathOf(r.url));
+
+function pathOf(requestUrl) {
+  try {
+    return new URL(requestUrl).pathname;
+  } catch {
+    return '';
+  }
+}
+
 function byService(requests) {
   const groups = new Map();
   for (const r of requests) groups.set(r.service, [...(groups.get(r.service) ?? []), r]);
@@ -29,6 +41,7 @@ function byService(requests) {
 }
 
 function notRun(scan, run) {
+  if (run?.reason === TIME_LIMIT_REASON) return []; // the scan ended early; the scan note says so, a hint about the button would mislead
   // The runs click on the start page, so only a dialog there counts (cookie tables on the
   // privacy page look like one); a successful accept click proves a dialog the page scan missed (e.g. in an iframe).
   const startPage = okPages(scan)[0];
@@ -46,7 +59,9 @@ export function checkConsentChoice(scan) {
   const results = [];
   const tracking = run.requests.filter((r) => r.thirdParty && TRACKING_CATEGORIES.has(r.category));
   for (const [service, requests] of byService(tracking)) {
-    const states = requests.map((r) => consentModeState(r.url));
+    // Judge the Consent Mode state by the pings; without any ping the script loads themselves are judged.
+    const pings = requests.filter(canCarryGcs);
+    const states = (pings.length > 0 ? pings : requests).map((r) => consentModeState(r.url));
     const examples = requests.slice(0, MAX_EXAMPLES).map((r) => r.url);
     if (states.every((s) => s === 'denied')) {
       results.push(finding('TDD-07', 'hint', `${service} sends Consent Mode pings after reject (gcs=G100)`, run.visited, { ...base, requests: examples }));

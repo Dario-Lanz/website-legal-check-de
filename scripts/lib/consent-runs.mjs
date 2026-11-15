@@ -8,6 +8,10 @@ import { LEGAL_TYPES } from './page-types.mjs';
 import { matchService } from './third-parties.mjs';
 import { isThirdParty } from './url.mjs';
 import { PATTERNS } from './checks/helpers.mjs';
+import { closeQuietly, withTimeout } from './timeout.mjs';
+
+/** Reason of a run that was cut short by the scan's time limit; TDD-06 stays silent about it. */
+export const TIME_LIMIT_REASON = 'time limit reached';
 
 export const CHOICES = ['reject', 'accept'];
 /** Pages visited after the click besides the reload of the start page. */
@@ -72,53 +76,69 @@ export function consentRunUrls(pages) {
  * @param {import('playwright').Browser} browser
  * @param {URL} start
  * @param {string[]} pageUrls scanned pages (start page first); the run reloads the start page and visits a few of the others
- * @param {{contextOptions: object, timeoutMs: number, settleMs: number}} options
+ * @param {{contextOptions: object, timeoutMs: number, settleMs: number, shouldStop?: () => boolean}} options shouldStop: true once the scan's time limit is reached. The browser must already be guarded (blockInternalNavigations)
  * @returns {Promise<Record<string, object>>} one result per choice
  */
 export async function runConsentChoices(browser, start, pageUrls, options) {
   const results = {};
-  for (const choice of CHOICES) results[choice] = await runChoice(browser, start, pageUrls, choice, options);
+  for (const choice of CHOICES) {
+    results[choice] = options.shouldStop?.()
+      ? { choice, clicked: false, reason: TIME_LIMIT_REASON }
+      : await runChoice(browser, start, pageUrls, choice, options);
+  }
   return results;
 }
 
-async function runChoice(browser, start, pageUrls, choice, { contextOptions, timeoutMs, settleMs }) {
-  const context = await browser.newContext(contextOptions);
-  const requests = [];
-  let phase = 'before';
+/** Record every http(s) request of the context from the click on; run.phase names the step ("before" records nothing). */
+function trackRequests(context, run, start) {
   context.on('request', (request) => {
-    if (phase === 'before' || !/^https?:/i.test(request.url())) return;
+    if (run.phase === 'before' || !/^https?:/i.test(request.url())) return;
     const service = matchService(request.url());
-    requests.push({
+    run.requests.push({
       url: request.url().slice(0, 500), thirdParty: isThirdParty(request.url(), start.hostname),
-      service: service?.name ?? null, category: service?.category ?? null, step: phase,
+      service: service?.name ?? null, category: service?.category ?? null, step: run.phase,
     });
   });
+}
+
+/** Reload the start page and visit a few more pages after the click. */
+async function visitAfterClick(page, run, pageUrls, { timeoutMs, settleMs }) {
+  const visited = [];
+  for (const url of [pageUrls[0], ...pageUrls.slice(1, 1 + EXTRA_PAGES)]) {
+    run.phase = url;
+    await page.goto(url, { waitUntil: 'load', timeout: timeoutMs }).catch(() => null);
+    await page.waitForTimeout(settleMs);
+    visited.push(url);
+  }
+  return visited;
+}
+
+async function runChoice(browser, start, pageUrls, choice, { contextOptions, timeoutMs, settleMs, shouldStop }) {
+  const run = { phase: 'before', requests: [] };
+  let context;
   try {
+    context = await browser.newContext(contextOptions);
+    trackRequests(context, run, start);
     const page = await context.newPage();
     await page.goto(pageUrls[0], { waitUntil: 'load', timeout: timeoutMs });
     await page.waitForTimeout(settleMs);
-    await page.evaluate(collectPageFacts); // marks the banner element
-    const cookiesBefore = new Set((await context.cookies()).map((c) => `${c.name}@${c.domain}`));
-    const button = await findChoiceButton(page, choice);
+    await withTimeout(page.evaluate(collectPageFacts), timeoutMs); // marks the banner element
+    const cookiesBefore = new Set((await withTimeout(context.cookies(), timeoutMs)).map((c) => `${c.name}@${c.domain}`));
+    const button = await withTimeout(findChoiceButton(page, choice), timeoutMs);
     if (!button) return { choice, clicked: false, reason: 'no matching button found' };
-    phase = 'click';
+    run.phase = 'click';
     await button.item.click({ timeout: CLICK_TIMEOUT_MS });
     await page.waitForTimeout(settleMs);
-    const bannerGone = !(await page.locator('[data-wlc-banner="1"]').first().isVisible().catch(() => false));
-    const visited = [];
-    for (const url of [pageUrls[0], ...pageUrls.slice(1, 1 + EXTRA_PAGES)]) {
-      phase = url;
-      await page.goto(url, { waitUntil: 'load', timeout: timeoutMs }).catch(() => null);
-      await page.waitForTimeout(settleMs);
-      visited.push(url);
-    }
-    const cookies = (await context.cookies())
+    const bannerGone = !(await withTimeout(page.locator('[data-wlc-banner="1"]').first().isVisible(), timeoutMs).catch(() => false));
+    const visited = await visitAfterClick(page, run, pageUrls, { timeoutMs, settleMs });
+    const cookies = (await withTimeout(context.cookies(), timeoutMs))
       .filter((c) => !cookiesBefore.has(`${c.name}@${c.domain}`))
       .map((c) => ({ name: c.name, domain: c.domain, thirdParty: isThirdParty(`https://${c.domain.replace(/^\./, '')}/`, start.hostname) }));
-    return { choice, clicked: true, button: button.label, bannerGone, visited, requests, newCookies: cookies };
+    return { choice, clicked: true, button: button.label, bannerGone, visited, requests: run.requests, newCookies: cookies };
   } catch (error) {
-    return { choice, clicked: false, reason: error.message.split('\n')[0] };
+    // The watchdog closes the browser at the time limit; that is no failure of the reject button.
+    return { choice, clicked: false, reason: shouldStop?.() ? TIME_LIMIT_REASON : error.message.split('\n')[0] };
   } finally {
-    await context.close();
+    if (context) await closeQuietly(context);
   }
 }

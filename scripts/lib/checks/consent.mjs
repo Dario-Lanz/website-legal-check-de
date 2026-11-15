@@ -7,10 +7,13 @@ import { finding, okPages, PATTERNS } from './helpers.mjs';
 export const TRACKING_CATEGORIES = new Set(['analytics', 'ads', 'tagmanager', 'social', 'video', 'audio', 'maps', 'chat', 'captcha']);
 /** Embedded third-party widgets: loading them before consent is a TDD-01 finding (priority 2), not tracking after reject. */
 export const EMBED_CATEGORIES = new Set(['booking', 'forms', 'newsletter', 'reviews']);
-/** Known services that are neither tracking nor embeds (e.g. payment): named in TDD-05, judged by Claude. */
+/** Known services with their own handling: fonts (TDD-02 gap), cdn (TDD-02 hint), consent tools (not tracking). Other known services (e.g. payment) are named in TDD-05, judged by Claude. */
 const SPECIAL_CATEGORIES = new Set(['fonts', 'cdn', 'consent']);
 export const TRACKER_COOKIE = /^(_ga|_gid|_gat|_gcl_|_fbp|_fbc|_hj|_clck|_clsk|_uetsid|_uetvid|_pk_|_tt_|_pin_|IDE$|NID$|fr$|li_|bcookie|_ttp)/i;
 const MAX_EXAMPLES = 3;
+/** Paths under which Google tags are served from the site's own (sub)domain: server-side tagging (decision 77a). */
+const SERVER_SIDE_TAG_PATH = /^\/(g\/collect|gtag\/js|gtm\.js)$/;
+const SERVER_SIDE_TAG_SERVICE = 'Google (serverseitig)';
 
 function groupByService(requests) {
   const groups = new Map();
@@ -51,6 +54,15 @@ function trackersBeforeConsent(scan) {
   return results;
 }
 
+/** Known tracking paths on the own domain are no gap (the purpose cannot be seen from outside), only a hint to check. */
+function serverSideTagging(scan) {
+  const requests = scan.requests.filter((r) => r.thirdParty === false && !r.mainFrame && SERVER_SIDE_TAG_PATH.test(new URL(r.url).pathname));
+  if (requests.length === 0) return [];
+  const [group] = groupByService(requests.map((r) => ({ ...r, service: SERVER_SIDE_TAG_SERVICE, category: 'tagmanager' })));
+  return [finding('TDD-01', 'hint', `${SERVER_SIDE_TAG_SERVICE}: tracking paths on the own domain, check manually`, pageUrls(scan, group.pages),
+    { service: SERVER_SIDE_TAG_SERVICE, category: 'tagmanager', provider: null, requests: group.examples })];
+}
+
 function storageBeforeConsent(scan) {
   const results = [];
   const trackerCookies = scan.cookies.filter((c) => c.thirdParty || TRACKER_COOKIE.test(c.name));
@@ -74,7 +86,7 @@ function storageBeforeConsent(scan) {
 function consentDialog(scan, needsConsent) {
   const withBanner = okPages(scan).find((p) => p.facts.banner);
   if (!withBanner) {
-    return needsConsent ? [finding('TDD-04', 'gap', 'No consent dialog found although trackers or cookies were detected', [scan.pages[0].finalUrl])] : [];
+    return needsConsent ? [finding('TDD-04', 'gap', 'No consent dialog found although trackers or cookies were detected', [scan.pages[0]?.finalUrl ?? scan.pages[0]?.url].filter(Boolean))] : [];
   }
   const { buttons, text } = withBanner.facts.banner;
   const evidence = { bannerButtons: buttons, bannerText: text.slice(0, 300), screenshots: [withBanner.screenshots?.cookieabfrage].filter(Boolean) };
@@ -83,11 +95,14 @@ function consentDialog(scan, needsConsent) {
   if (hasAccept && !hasReject) {
     return [finding('TDD-04', 'gap', 'Consent dialog: no reject option on the first layer', [withBanner.finalUrl], evidence)];
   }
+  if (!hasAccept && !hasReject) {
+    return [finding('TDD-04', 'hint', 'Consent dialog: buttons not recognised, check accept and reject on the first layer manually', [withBanner.finalUrl], evidence)];
+  }
   return [finding('TDD-04', 'ok', 'Consent dialog offers accept and reject on the first layer', [withBanner.finalUrl], evidence)];
 }
 
 export function checkConsent(scan) {
-  const trackerFindings = trackersBeforeConsent(scan);
+  const trackerFindings = [...trackersBeforeConsent(scan), ...serverSideTagging(scan)];
   const storageFindings = storageBeforeConsent(scan);
   const needsConsent = [...trackerFindings, ...storageFindings].some((f) => f.status === 'gap');
   return [...trackerFindings, ...storageFindings, ...consentDialog(scan, needsConsent)];

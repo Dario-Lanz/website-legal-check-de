@@ -4,14 +4,19 @@
 
 import { readFileSync } from 'node:fs';
 import { renderKiPrompt } from './ki-prompt.mjs';
-import { ABMAHN_ICON, collectSources, esc, link, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
+import { ABMAHN_ICON, collectSources, esc, escHtml, link, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
 
 const ABBREVIATIONS = JSON.parse(readFileSync(new URL('../../../data/abbreviations.json', import.meta.url), 'utf8')).entries;
 const longOf = (a, t) => t.abbreviations?.[a.short] ?? (t.lang === 'en' && a.longEn ? a.longEn : a.long);
 
+/** Text for a CSS string: backslash, quote and tag characters escaped, line breaks removed. */
+export function cssString(text) {
+  return String(text ?? '').replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, '\\$&').replace(/[<>&]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `);
+}
+
 const css = (t, site) => `
   @page { size: A4; margin: 20mm 20mm 20mm 25mm;
-    @top-right { content: "${esc(t.long.running(site)).replace(/"/g, '')}"; font: 9pt "Source Sans 3", sans-serif; color: #555; }
+    @top-right { content: "${cssString(t.long.running(site))}"; font: 9pt "Source Sans 3", sans-serif; color: #555; }
     @bottom-center { content: "${t.long.page[0]}" counter(page) "${t.long.page[1]}" counter(pages); font: 9pt "Source Sans 3", sans-serif; color: #555; } }
   @page :first { @top-right { content: none; } @bottom-center { content: none; } }
   * { box-sizing: border-box; }
@@ -120,11 +125,11 @@ function prioChapters(model, counters, sourceNo) {
 function promptChapter(model, show, promptFile) {
   if (!show) return '';
   const { t } = model;
-  const file = promptFile && /^[\w.-]+\.txt$/.test(promptFile) ? `<a href="${esc(promptFile)}">${esc(promptFile)}</a>` : esc(promptFile ?? '');
+  const file = promptFile && /^[\w.-]+\.txt$/.test(promptFile) ? `<a href="${escHtml(promptFile)}">${escHtml(promptFile)}</a>` : esc(promptFile ?? '');
   return `<section class="chapter" id="ki-prompt"><h1>${t.long.prompt}</h1>
 <p class="lead">${t.long.promptLead}</p>
 ${promptFile ? `<p>${t.long.promptFile(file)}</p>` : ''}
-<pre class="prompt">${esc(renderKiPrompt(model))}</pre></section>`;
+<pre class="prompt">${escHtml(renderKiPrompt(model))}</pre></section>`;
 }
 
 function manualChapter(model, counters) {

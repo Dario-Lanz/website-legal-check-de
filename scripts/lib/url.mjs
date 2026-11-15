@@ -2,9 +2,16 @@
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
-// Second-level public suffixes that need three labels for the registrable domain.
+// Suffixes that need three labels for the registrable domain: second-level public suffixes
+// and hosting platforms where every customer owns a subdomain ("shop.github.io" is not "github.io").
 const TWO_LABEL_SUFFIXES = new Set([
-  'co.uk', 'org.uk', 'ac.uk', 'gv.at', 'co.at', 'or.at', 'com.au', 'co.nz', 'com.br', 'co.jp',
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'nhs.uk', 'ltd.uk', 'plc.uk', 'me.uk', 'net.uk', 'sch.uk',
+  'gv.at', 'co.at', 'or.at', 'com.au', 'net.au', 'org.au', 'co.nz', 'com.br', 'co.jp', 'co.za', 'co.in',
+  'com.tr', 'com.mx', 'com.cn', 'com.hk', 'com.sg', 'com.tw', 'com.ar', 'com.ua', 'co.kr',
+  'github.io', 'gitlab.io', 'netlify.app', 'vercel.app', 'pages.dev', 'workers.dev', 'herokuapp.com',
+  'myshopify.com', 'wixsite.com', 'wixstudio.io', 'blogspot.com', 'wordpress.com', 'weebly.com',
+  'squarespace.com', 'webflow.io', 'jimdofree.com', 'jimdosite.com', 'azurewebsites.net',
+  'cloudfront.net', 'appspot.com', 'web.app', 'firebaseapp.com',
 ]);
 
 /**

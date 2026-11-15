@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CLI: build the requested PDFs (short and/or long report) and, on request, the prompt
 // for AI coding agents from report.json. report.json lives in <run folder>/daten/; the
-// results go to the run folder. No HTML files stay behind.
+// results go to the run folder. Mock-up pages stay in daten/ as the source of the images.
 // Usage: node scripts/build-reports.mjs --data <run folder>/daten/report.json --prefix 20261107_xyz [--short] [--long [--ki-prompt | --ki-unknown] [--prompt-txt]] [--texts <translated.json>] [--suffix _DE]
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -54,7 +54,7 @@ export function resultDir(dataFile) {
   return path.basename(dir) === DATA_DIR ? path.dirname(dir) : dir;
 }
 
-/** Replace figure paths by shrunk data URIs and add rendered mock-ups as images. */
+/** Replace figure paths by shrunk data URIs and add rendered mock-ups as images (sources stay in place). */
 async function withImages(model, baseDir) {
   const browser = await chromium.launch();
   try {
@@ -63,7 +63,6 @@ async function withImages(model, baseDir) {
       f.figures = f.figures.map((fig) => ({ ...fig, src: figures.get(fig.src) }));
       if (f.mockup?.file) f.mockupImage = mockups.get(f.mockup.file);
     }
-    return [...mockups.keys()].map((file) => path.resolve(baseDir, file));
   } finally {
     await browser.close();
   }
@@ -124,15 +123,14 @@ export async function buildReports(dataFile, prefix, { short = false, long = fal
     };
     if (short) await build('Kurzbericht', renderKurzbericht(model, { withLong: Boolean(long) }));
     if (long) {
-      const mockupFiles = await withImages(model, dataDir);
+      await withImages(model, dataDir);
       const promptFile = ki.kiPrompt && withFile ? `${prefix}_${model.t.files.prompt}${suffix}.txt` : undefined;
       if (promptFile) {
         await writeFile(path.join(outDir, promptFile), renderKiPrompt(model));
         results['KI-Prompt'] = { txt: path.join(outDir, promptFile) };
       }
       await build('Langfassung', renderLangfassung(model, { promptChapter: ki.kiPrompt, promptFile }));
-      // Mock-up pages are only a source for the images in the PDF (decision 15a).
-      await Promise.all(mockupFiles.map((file) => rm(file, { force: true })));
+      // Mock-up pages stay in daten/ (source for the images in the PDF), so a rebuild works.
     }
   } finally {
     await rm(work, { recursive: true, force: true });

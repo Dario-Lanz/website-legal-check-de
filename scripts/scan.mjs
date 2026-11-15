@@ -11,12 +11,13 @@ import { runChecks } from './lib/checks/index.mjs';
 import { createRunDir, filePrefix, fileSuffix, LANG_CODE } from './lib/run-dir.mjs';
 import { findPreviousScan } from './lib/reuse.mjs';
 import { DEFAULTS, scanSite } from './lib/scanner.mjs';
+import { parseMaxMinutes } from './lib/time-limit.mjs';
 import { normalizeStartUrl } from './lib/url.mjs';
 
 const DATA_DIR = 'daten';
 
 const USAGE = [
-  'Usage: node scripts/scan.mjs --url <website> (--parent <folder> | --out <folder>) [--max-extra <n>] [--no-deep] [--reuse <earlier run folder>] [--lang <document language, e.g. de>]',
+  'Usage: node scripts/scan.mjs --url <website> (--parent <folder> | --out <folder>) [--max-extra <n>] [--no-deep] [--max-minutes <n>] [--reuse <earlier run folder>] [--lang <document language, e.g. de>]',
   '       node scripts/scan.mjs --url <website> --parent <folder> --find-previous',
 ].join('\n');
 
@@ -24,7 +25,7 @@ function parseOptions() {
   const { values } = parseArgs({
     options: {
       url: { type: 'string' }, out: { type: 'string' }, parent: { type: 'string' },
-      'max-extra': { type: 'string' }, 'no-deep': { type: 'boolean', default: false },
+      'max-extra': { type: 'string' }, 'max-minutes': { type: 'string' }, 'no-deep': { type: 'boolean', default: false },
       reuse: { type: 'string' }, 'find-previous': { type: 'boolean', default: false }, lang: { type: 'string', default: 'de' },
       help: { type: 'boolean', default: false },
     },
@@ -39,12 +40,19 @@ function parseOptions() {
     console.error('--max-extra must be an integer between 0 and 200');
     process.exit(2);
   }
+  let maxTotalMs;
+  try {
+    maxTotalMs = parseMaxMinutes(values['max-minutes']);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(2);
+  }
   if (!LANG_CODE.test(values.lang)) {
     console.error('--lang must be an ISO 639-1 code such as de, en or fr');
     process.exit(2);
   }
   return {
-    startUrl: values.url, out: values.out, parent: values.parent, maxExtraPages: maxExtra, deep: !values['no-deep'],
+    startUrl: values.url, out: values.out, parent: values.parent, maxExtraPages: maxExtra, maxTotalMs, deep: !values['no-deep'],
     reuseFrom: values.reuse ? path.resolve(values.reuse) : undefined, findPrevious: values['find-previous'], lang: values.lang,
   };
 }

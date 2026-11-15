@@ -8,11 +8,11 @@ export const PAGE_TYPE_PATTERNS = [
   ['withdrawal', /widerruf|withdrawal|cancellation-policy|right-of-withdrawal/i],
   ['terms', /\bagb\b|agbs|allgemeine-geschaeftsbedingungen|gesch(ae|ä)ftsbedingungen|terms|nutzungsbedingungen/i],
   ['accessibility', /barrierefreiheit|accessibility/i],
-  ['checkout', /checkout|kasse|bestellung-abschliessen|bezahlen/i],
+  ['checkout', /checkout|\bkasse\b|bestellung-abschliessen|bezahlen/i],
   ['cart', /warenkorb|\bcart\b|basket|einkaufswagen/i],
   ['account', /\b(login|anmelden|konto|account|mein-konto|registrieren|register)\b/i],
   ['shop', /\/(shop|store|merch)\/?(\s|$)/i],
-  ['product', /\/(produkt|product|products|produkte|artikel|item|p)\/|\b(order|bestellen|jetzt kaufen|buy now|in den warenkorb)\b/i],
+  ['product', /\/(produkt|product|products|produkte|artikel|item)\/|\b(order|bestellen|jetzt kaufen|buy now|in den warenkorb)\b/i],
   ['contact', /kontakt|contact/i],
   ['blog', /\/(blog|news|aktuelles|magazin|beitrag|posts?)\//i],
 ];
@@ -29,16 +29,43 @@ export const LEGAL_TYPES = ['imprint', 'privacy', 'withdrawal', 'terms', 'access
  * @returns {string} page type or "other"
  */
 export function classifyPage(url, linkText = '') {
-  let path = url;
+  const byPath = firstMatch(decodeSafe(pathOf(url)), PAGE_TYPE_PATTERNS);
+  return byPath !== 'other' ? byPath : firstMatch(linkText, PAGE_TYPE_PATTERNS);
+}
+
+/**
+ * Type of a page that was loaded: by URL path first; the page title only identifies legal pages
+ * and only below the root, because a title such as "Kanzlei für Datenschutz" says nothing about
+ * the page type ("bestellen", "kasse" in titles and texts of ordinary pages are not shop signals).
+ * @param {string} url
+ * @param {string} [title]
+ * @returns {string} page type or "other"
+ */
+export function classifyVisitedPage(url, title = '') {
+  const byPath = classifyPage(url);
+  if (byPath !== 'other') return byPath;
+  let pathname = '/';
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    // not a URL: treat like a root path, the title is not trusted
+  }
+  if (pathname === '/' || pathname === '') return 'other';
+  return firstMatch(title, PAGE_TYPE_PATTERNS.filter(([type]) => LEGAL_TYPES.includes(type)));
+}
+
+function pathOf(url) {
   try {
     const parsed = new URL(url);
-    path = `${parsed.pathname}${parsed.search}`;
+    return `${parsed.pathname}${parsed.search}`;
   } catch {
-    // keep raw string
+    return url;
   }
-  const haystack = `${decodeSafe(path)} ${linkText}`;
-  for (const [type, pattern] of PAGE_TYPE_PATTERNS) {
-    if (pattern.test(haystack)) return type;
+}
+
+function firstMatch(text, patterns) {
+  for (const [type, pattern] of patterns) {
+    if (pattern.test(text)) return type;
   }
   return 'other';
 }

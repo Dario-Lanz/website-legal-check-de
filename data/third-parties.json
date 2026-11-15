@@ -1,5 +1,5 @@
 {
-  "_comment": "Well-known third-party services. 'hosts' match the request hostname or any subdomain; 'paths' optionally restrict to URL path prefixes. 'keywords' are searched (case-insensitive) in the privacy policy text. 'category': fonts | analytics | ads | tagmanager | video | audio | maps | social | chat | captcha | booking | forms | newsletter | reviews | payment | monitoring | cdn | consent | other. Consent tools are listed so they are not reported as trackers. 'provider': legal entity and country from the vendor's own imprint, privacy or legal page ('source', fetched 2026-11-11); null where not verified. Hosts come from vendor documentation or are vendor-owned domains (list of 2026-11-11, decision 57a).",
+  "_comment": "Well-known third-party services. 'hosts' match the request hostname or any subdomain; 'hostPaths' restrict a host to path prefixes, and 'idPrefixes' (id= parameter of gtag/js, e.g. AW- for Google Ads) pick the service when several share a path, the one without idPrefixes being the fallback; 'paths' optionally restrict to URL path prefixes. 'keywords' are searched (case-insensitive) in the privacy policy text. 'category': fonts | analytics | ads | tagmanager | video | audio | maps | social | chat | captcha | booking | forms | newsletter | reviews | payment | monitoring | cdn | consent | other. Consent tools are listed so they are not reported as trackers. 'provider': legal entity and country from the vendor's own imprint, privacy or legal page ('source', fetched 2026-11-11; CookieYes and iubenda 2026-11-15); null where not verified. Hosts come from vendor documentation or are vendor-owned domains (list of 2026-11-11, decision 57a).",
   "services": [
     {
       "name": "Google Fonts",
@@ -56,6 +56,11 @@
         "google-analytics.com",
         "analytics.google.com"
       ],
+      "hostPaths": {
+        "googletagmanager.com": [
+          "/gtag/js"
+        ]
+      },
       "keywords": [
         "google analytics"
       ],
@@ -88,6 +93,15 @@
         "googleadservices.com",
         "googlesyndication.com",
         "adservice.google.com"
+      ],
+      "hostPaths": {
+        "googletagmanager.com": [
+          "/gtag/js"
+        ]
+      },
+      "idPrefixes": [
+        "AW-",
+        "DC-"
       ],
       "keywords": [
         "google ads",
@@ -141,9 +155,15 @@
       "category": "maps",
       "hosts": [
         "maps.googleapis.com",
-        "maps.gstatic.com"
+        "maps.gstatic.com",
+        "maps.google.com"
       ],
       "paths": [],
+      "hostPaths": {
+        "google.com": [
+          "/maps/embed"
+        ]
+      },
       "keywords": [
         "google maps"
       ],
@@ -458,7 +478,8 @@
       "category": "consent",
       "hosts": [
         "consent.cookiebot.com",
-        "consentcdn.cookiebot.com"
+        "consentcdn.cookiebot.com",
+        "consent.cookiebot.eu"
       ],
       "keywords": [
         "cookiebot"
@@ -1638,6 +1659,37 @@
         "acuity"
       ],
       "provider": null
+    },
+    {
+      "name": "CookieYes",
+      "category": "consent",
+      "hosts": [
+        "cdn-cookieyes.com",
+        "cookieyes.com"
+      ],
+      "keywords": [
+        "cookieyes"
+      ],
+      "provider": {
+        "entity": "CookieYes Limited",
+        "country": "Vereinigtes Königreich",
+        "source": "https://www.cookieyes.com/privacy-policy/"
+      }
+    },
+    {
+      "name": "iubenda",
+      "category": "consent",
+      "hosts": [
+        "iubenda.com"
+      ],
+      "keywords": [
+        "iubenda"
+      ],
+      "provider": {
+        "entity": "iubenda S.r.l.",
+        "country": "Italien",
+        "source": "https://www.iubenda.com/en/"
+      }
     }
   ]
 }

@@ -7,7 +7,9 @@ const DATA_URL = new URL('../../data/third-parties.json', import.meta.url);
 /**
  * provider: legal entity and country from the vendor's own imprint or privacy page (decision 58a);
  * null where it was not verified.
- * @type {{name: string, category: string, hosts: string[], paths?: string[], keywords: string[],
+ * hostPaths: hosts that belong to the service only for the given path prefixes (e.g. googletagmanager.com/gtag/js is Google Analytics); a match there wins over the plain host match of another service.
+ * idPrefixes: with a shared hostPath (gtag/js) the id= parameter decides: AW-/DC- is Google Ads, others fall back to the service without idPrefixes (Google Analytics).
+ * @type {{name: string, category: string, hosts: string[], paths?: string[], hostPaths?: Record<string, string[]>, idPrefixes?: string[], keywords: string[],
  *   provider?: {entity: string, country: string, source: string} | null}[]}
  */
 export const SERVICES = JSON.parse(readFileSync(DATA_URL, 'utf8')).services;
@@ -28,6 +30,11 @@ export function matchService(requestUrl) {
     return null;
   }
   const host = url.hostname.toLowerCase();
+  const onPath = SERVICES.filter((s) => Object.entries(s.hostPaths ?? {}).some(([h, paths]) => (host === h || host.endsWith(`.${h}`))
+    && paths.some((p) => url.pathname.startsWith(p))));
+  const id = (url.searchParams.get('id') ?? '').toUpperCase();
+  const byHostPath = onPath.find((s) => s.idPrefixes?.some((prefix) => id.startsWith(prefix))) ?? onPath.find((s) => !s.idPrefixes);
+  if (byHostPath) return byHostPath;
   for (const service of SERVICES) {
     const hostMatch = service.hosts.some((h) => host === h || host.endsWith(`.${h}`));
     if (!hostMatch) continue;

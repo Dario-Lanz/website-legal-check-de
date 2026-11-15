@@ -7,12 +7,18 @@ export function collectPageFacts() {
   // Imprints and privacy policies are read in full for the content checks (IMP-04, DSE-02, DSE-03).
   const LEGAL_PAGE = /impressum|imprint|anbieterkennzeichnung|legal-notice|datenschutz|privacy|dsgvo|gdpr/i;
   const REGION_SELECTOR = 'header, footer, nav, [role="banner"], [role="contentinfo"], [role="navigation"]';
+  // Named consent tools first, then generic name patterns; generic matches must prove to be a dialog (see findBanner).
   const BANNER_SELECTORS = [
     '#CybotCookiebotDialog', '#onetrust-banner-sdk', '#usercentrics-root', '#usercentrics-cmp-ui',
     '.cmplz-cookiebanner', '#BorlabsCookieBox', '#cookie-law-info-bar', '#cookie-notice',
+    '#didomi-host', '#qc-cmp2-container', '#iubenda-cs-banner', '.cky-consent-container', '#cmpbox', '#cmpwrapper', '.klaro',
     '[id*="cookie" i]', '[class*="cookie" i]', '[id*="consent" i]', '[class*="consent" i]',
-    '[id*="cmp" i]', '[aria-modal="true"]', '[role="dialog"]', '[role="alertdialog"]',
+    '[aria-modal="true"]', '[role="dialog"]', '[role="alertdialog"]',
   ];
+  const BANNER_TEXT = /cookie|einwillig|zustimm|consent|datenschutz|tracking|akzept|accept/i;
+  // A consent dialog offers at least one choice: accept, reject or settings.
+  const CHOICE_LABEL = /akzept|accept|ablehn|reject|decline|deny|refuse|verweiger|zustimm|einwillig|einverstanden|erlauben|zulassen|allow|einstellung|settings|anpassen|customi[sz]e|auswahl|speichern|save|preferences|notwendig|necessary|essen[tz]|verstanden|got it|agree|\bok\b/i;
+  const BANNER_CONTROLS = 'button, a, [role="button"], input[type="button"], input[type="submit"]';
   const clean = (text, max) => (text ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
   const isVisible = (el) => {
     if (!el || !el.getBoundingClientRect) return false;
@@ -64,30 +70,63 @@ export function collectPageFacts() {
 
   const iframes = [...document.querySelectorAll('iframe')].map((f) => ({ src: f.src || '', visible: isVisible(f) }));
 
-  const banner = findBanner();
+  // The page itself (html, body, main) or a wrapper around nearly all of it is no dialog; a fixed or sticky box is.
+  function isPageWrapper(el) {
+    if (el === document.documentElement || el === document.body || el.tagName === 'MAIN') return true;
+    const position = window.getComputedStyle(el).position;
+    if (position === 'fixed' || position === 'sticky') return false;
+    const rect = el.getBoundingClientRect();
+    const pageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+    return rect.height >= pageHeight * 0.8 && rect.width >= document.documentElement.clientWidth * 0.8;
+  }
+  function controlsOf(el) {
+    const scopes = el.shadowRoot ? [el, el.shadowRoot] : [el];
+    return scopes.flatMap((scope) => [...scope.querySelectorAll(BANNER_CONTROLS)]).filter(isVisible).map(labelOf).filter(Boolean);
+  }
+  function bannerCandidate(el) {
+    if (isPageWrapper(el)) return null;
+    const text = clean(el.innerText || el.textContent, LIMITS.banner);
+    if (!BANNER_TEXT.test(text)) return null;
+    const buttons = controlsOf(el);
+    if (!buttons.some((label) => CHOICE_LABEL.test(label))) return null;
+    const message = buttons.reduce((rest, label) => rest.replace(label, ''), text).trim();
+    return { el, text, buttons, hasMessage: message.length > 0 };
+  }
+  // Outermost box that is no page wrapper (the choice buttons may sit in a sibling of the message);
+  // go inward only into a box that still has the message and every choice control of the outer one.
+  function chooseBanner(found) {
+    let chosen = found.find((c) => !found.some((o) => o !== c && o.el.contains(c.el)));
+    if (!chosen) return null;
+    const keepsAll = (inner) => inner.hasMessage && chosen.buttons.every((label) => inner.buttons.includes(label));
+    for (;;) {
+      const inner = found.find((c) => c !== chosen && chosen.el.contains(c.el) && keepsAll(c));
+      if (!inner) return chosen;
+      chosen = inner;
+    }
+  }
   function findBanner() {
     for (const selector of BANNER_SELECTORS) {
-      const candidates = queryAllDeep(selector).filter(isVisible);
-      for (const el of candidates) {
-        const text = clean(el.innerText || el.textContent, LIMITS.banner);
-        if (!/cookie|einwillig|zustimm|consent|datenschutz|tracking|akzept|accept/i.test(text)) continue;
-        el.setAttribute('data-wlc-banner', '1');
-        const bannerButtons = [...el.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]')]
-          .filter(isVisible).map(labelOf).filter(Boolean);
-        return { selector, text, buttons: bannerButtons };
-      }
+      const chosen = chooseBanner(queryAllDeep(selector).filter(isVisible).map(bannerCandidate).filter(Boolean));
+      if (!chosen) continue;
+      chosen.el.setAttribute('data-wlc-banner', '1');
+      return { selector, text: chosen.text, buttons: chosen.buttons };
     }
     return null;
   }
 
+  const banner = findBanner();
+
   const prices = collectPrices();
   function collectPrices() {
-    const pattern = /(\d{1,3}(?:[.\s]\d{3})*,\d{2}|\d+,-)\s?(€|EUR)|(€|EUR)\s?\d/;
+    const pattern = /\d{1,3}(?:[.\s]\d{3})*(?:,\d{2}|,-)?\s?(€|EUR)|(€|EUR)\s?\d/g;
+    // Amounts of share capital and fines are no offer prices ("Stammkapital: 25.000 €", "bis zu 20.000.000 EUR").
+    const notAPrice = /(stammkapital|grundkapital|bußgeld\w*|bis zu)[^\d€]{0,25}$/i;
+    const hasPrice = (text) => [...text.matchAll(pattern)].some((m) => !notAPrice.test(text.slice(Math.max(0, m.index - 40), m.index)));
     const found = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (walker.nextNode() && found.length < LIMITS.prices) {
       const node = walker.currentNode;
-      if (!pattern.test(node.nodeValue)) continue;
+      if (!hasPrice(node.nodeValue)) continue;
       const block = node.parentElement?.closest('li, article, tr, section, div, p') ?? node.parentElement;
       if (!block || !isVisible(node.parentElement)) continue;
       found.push({ text: clean(node.nodeValue, 60), context: clean(block.innerText, 240) });

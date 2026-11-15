@@ -5,7 +5,8 @@ import { finding, okPages, shotsOf } from './helpers.mjs';
 
 const url = (p) => p.finalUrl ?? p.url;
 const SERIOUS = new Set(['critical', 'serious']);
-const CHAT_TEXT = /chatbot|ki-assistent|ai assistant|virtuelle[rn]? assistent|chat with us|chatten sie/i;
+export const CHAT_TEXT = /chatbot|ki-assistent|ai assistant|virtuelle[rn]? assistent|chat with us|chatten sie/i;
+export const NEWSLETTER = /newsletter/i;
 export const COMMENT_TEXT = /kommentar|comment|bewertung schreiben|beitrag verfassen/i;
 
 function https(scan) {
@@ -15,7 +16,8 @@ function https(scan) {
     results.push(finding('SEC-01', 'gap', 'Site is reachable without HTTPS or http:// does not redirect to https://', [scan.startUrl], { transport: scan.transport }));
   }
   const httpsPages = new Set(okPages(scan).filter((p) => url(p).startsWith('https:')).map((p) => p.index));
-  const mixed = scan.requests.filter((r) => httpsPages.has(r.page) && r.url.startsWith('http:'));
+  // The main-frame navigation from http to https is the redirect, not mixed content; http iframes are.
+  const mixed = scan.requests.filter((r) => httpsPages.has(r.page) && r.url.startsWith('http:') && !r.mainFrame);
   if (mixed.length > 0) {
     results.push(finding('SEC-02', 'gap', 'Mixed content: resources loaded over unencrypted http', [], { requests: mixed.slice(0, 5).map((r) => r.url) }));
   }
@@ -56,7 +58,7 @@ function userContent(scan) {
 }
 
 function newsletter(scan) {
-  const pages = okPages(scan).filter((p) => p.facts.forms.some((f) => f.hasEmail && /newsletter/i.test(f.text)));
+  const pages = okPages(scan).filter((p) => p.facts.forms.some((f) => f.hasEmail && NEWSLETTER.test(f.text)));
   if (pages.length === 0) return [];
   return [finding('UWG-01', 'hint', 'Newsletter sign-up found; consent must be documented (double opt-in) – not checkable from outside', pages.map(url))];
 }
