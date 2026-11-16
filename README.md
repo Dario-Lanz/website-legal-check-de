@@ -11,23 +11,46 @@
 
 **Technische Prüfung, keine Rechtsberatung.**
 
-## Schnellstart
+## Installation Schritt für Schritt
 
-Voraussetzungen: Claude Code und Node.js 22 oder neuer.
+Für macOS und Linux.
 
-```bash
-git clone https://github.com/Dario-Lanz/website-legal-check-de.git
-cd website-legal-check-de
-npm ci
-npx playwright install chromium
-ln -s "$PWD" ~/.claude/skills/website-legal-check-de
-```
+1. **Terminal öffnen.** macOS: Programme › Dienstprogramme › Terminal (oder Cmd+Leertaste, „Terminal“ tippen). Linux: meist Strg+Alt+T. Jeder folgende Befehl wird dort eingefügt und mit der Eingabetaste bestätigt.
+2. **Node.js prüfen.** Der Skill braucht Node.js 22 oder neuer.
+   ```bash
+   node --version
+   ```
+   Erscheint `v22` oder eine höhere Zahl, weiter mit Schritt 3. Sonst die LTS-Version von [nodejs.org](https://nodejs.org) installieren und das Terminal neu öffnen.
+3. **Git prüfen.**
+   ```bash
+   git --version
+   ```
+   Erscheint eine Versionsnummer, weiter mit Schritt 4. Unter macOS bietet das System sonst an, die Entwicklerwerkzeuge zu installieren; zustimmen und danach den Befehl wiederholen.
+4. **Claude Code installieren**, falls noch nicht vorhanden: Anleitung auf [claude.com/claude-code](https://claude.com/claude-code).
+5. **Skill herunterladen.**
+   ```bash
+   git clone https://github.com/Dario-Lanz/website-legal-check-de.git
+   cd website-legal-check-de
+   ```
+   Danach gibt es im aktuellen Ordner den neuen Ordner `website-legal-check-de`, und das Terminal steht darin.
+6. **Bestandteile installieren.** Der zweite Befehl lädt den Browser, mit dem der Skill Websites öffnet (rund 100 MB).
+   ```bash
+   npm ci --ignore-scripts
+   npx playwright install chromium
+   ```
+   Dabei darf keine Fehlermeldung mit `ERR!` erscheinen.
+7. **Skill bei Claude Code anmelden.**
+   ```bash
+   mkdir -p ~/.claude/skills
+   ln -s "$PWD" ~/.claude/skills/website-legal-check-de
+   ```
+   Den Ordner `website-legal-check-de` danach nicht verschieben, sonst findet Claude Code den Skill nicht mehr.
+8. **Erste Prüfung starten.** In den Ordner wechseln, in dem die Berichte landen sollen, Claude Code mit `claude` starten und eintippen:
+   ```
+   /website-legal-check-de www.beispiel.de
+   ```
 
-Dann in Claude Code:
-
-```
-/website-legal-check-de www.beispiel.de
-```
+Updates: Alle drei Monate fragt der Skill selbst, ob er sich aktualisieren soll.
 
 Vor der Prüfung fragt der Skill je Website kurz nach, was entstehen soll:
 
