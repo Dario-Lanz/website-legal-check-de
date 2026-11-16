@@ -1,7 +1,7 @@
 # Product Marketing Context
 
-**Document version:** v24
-**Last updated:** 2026-11-15
+**Document version:** v25
+**Last updated:** 2026-11-16
 
 Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(Annahme)“ markierte Punkte sind nicht durch Nutzerbefragungen belegt.
 
@@ -53,7 +53,7 @@ Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(An
 - Prüft, was die Website wirklich lädt (Anfragen, Cookies, Speicher) – vor jeder Einwilligung.
 - Jede Lücke mit Beleg, Vorschrift, Priorität und ⚠ bei häufigen Abmahngründen.
 - Behebung inklusive: Textentwürfe, Mock-ups, amtliche Quellen, KI-Prompt für Claude Code oder Codex.
-- Nur tatsächlich abgerufene, amtliche Quellen; monatliche Aktualitätsprüfung, dazu ein Selbst-Update zum Ende jedes Quartals; Kapitel zu kommenden Regeln.
+- Nur tatsächlich abgerufene, amtliche Quellen; alle drei Monate fragt der installierte Skill, ob er sich von GitHub aktualisieren und die Rechtsquellen neu prüfen soll (nur wenn es etwas Neues gibt), dazu ein Selbst-Update zum Ende jedes Quartals; Kapitel zu kommenden Regeln.
 - Erkennt über 100 Drittdienste beim Namen, bei 80 mit Anbieter und Land aus dessen eigener Seite.
 - Erkennt das System der Website (z. B. WordPress, Shopify, Wix) und schreibt Anleitungen für Laien; jeder Befund ist zusätzlich in einfachen Worten erklärt.
 - Berichte auf Deutsch oder Englisch; mehrere Websites in einem Aufruf; wiederholte Prüfungen übernehmen unveränderte Seiten aus dem letzten Scan.
@@ -122,7 +122,7 @@ Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(An
 |-------|-------|
 | Belegt | Anfragen, Cookies und Bildschirmfotos je Befund |
 | Umsetzbar | Textentwürfe, Mock-ups, KI-Prompt |
-| Aktuell | Monatliche Aktualitätsprüfung, Kapitel zu kommenden Regeln |
+| Aktuell | Update-Prüfung alle drei Monate mit zwei Ja/Nein-Fragen, Kapitel zu kommenden Regeln |
 
 ## Goals
 **Business goal:** Verbreitung und Rückmeldungen aus der Praxis (Annahme).
@@ -141,6 +141,7 @@ Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(An
 
 ## Changelog
 *Newest first. One line per revision: what changed and why.*
+- v25 (2026-11-16) — v1.17.0: the monthly automatic source re-check is replaced by a check every three months with two Y/N questions (skill update from GitHub, legal sources); confirmed gaps of common warning-letter duties are Prio 1. Product overview and proof table updated.
 - v24 (2026-11-15) — v1.16.0: review by Fable 5.2 and Opus 5.5, about 45 detection fixes (fewer false alarms on cookie banners, VAT notes, shop signals, imprint details), scan time limit --max-minutes, gzip sitemaps, server-side tagging hint, more consent tools, protection against redirects into the local network. No positioning change, description and topics unchanged.
 - v23 (2026-11-14) — v1.15.1: README names the SkillSpector (NVIDIA) security check of every release; the AI note says the author is responsible for code and texts. No positioning change, description and topics unchanged.
 - v22 (2026-11-11) — v1.12.0: 109 known services (was 32) with provider and country for 80, IMP-04 (imprint details) and DSE-03 (Art. 13 elements); quarterly self-update. Description now leads with service recognition and the quarterly update; the Shopify sentence dropped for length (350 limit). Topics unchanged (20 is the maximum).

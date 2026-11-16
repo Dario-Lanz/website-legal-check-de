@@ -2,7 +2,7 @@
 
 Platforms status: 2026-11-08. Used by workflow step 4 to tailor layperson fix steps to the system a site is built with (decision 22a). Click paths may only come from the platform's official help, fetched and dated (decision 23a).
 
-**How to use:** for the detected system, take the click paths for the task below and turn them into layperson steps (one action per step, explain terms, say what to see afterwards). Phrase them as following the official help („laut Hilfe-Center, Stand 2026-11“) and add that labels can differ by language, edition, theme or version; if a label is missing, the user should search the help centre for the task. Where a task is marked **ND** (not documented), give generic steps and never invent a menu path. **UNVERIFIED** and **OBS** items are hints for detection only, never for instructions. The monthly update check re-fetches the sources listed per platform.
+**How to use:** for the detected system, take the click paths for the task below and turn them into layperson steps (one action per step, explain terms, say what to see afterwards). Phrase them as following the official help („laut Hilfe-Center, Stand 2026-11“) and add that labels can differ by language, edition, theme or version; if a label is missing, the user should search the help centre for the task. Where a task is marked **ND** (not documented), give generic steps and never invent a menu path. **UNVERIFIED** and **OBS** items are hints for detection only, never for instructions. The source update (question U2) re-fetches the sources listed per platform.
 
 ## Detection signals (observed conventions)
 

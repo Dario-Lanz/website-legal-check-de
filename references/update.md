@@ -1,6 +1,6 @@
-# Update checks (monthly report, quarterly self-update)
+# Update checks (source update on request, quarterly self-update)
 
-Run when the status date at the top of `references/sources.md` is more than one month old (workflow step 0). Laws, case law and authority guidance change. During a website check this is **report only** (decision 10a): the skill files are never changed, because the installed skill is a copy of the repository and development happens elsewhere. Tell the user in German that the check runs and roughly how long it takes (about 10–20 minutes).
+Section A runs when the user answers question U2 with Y (workflow step 1, offered every three months when the quick check `scripts/update-check.mjs` finds changed laws or upcoming rules that now apply). Laws, case law and authority guidance change. During a website check this is **report only** (decision 10a): the skill files are never changed, because the installed skill is a copy of the repository and development happens elsewhere. Tell the user in German that the check runs and roughly how long it takes (about 10–20 minutes).
 
 ## A. During a website check (report only)
 
@@ -15,12 +15,12 @@ Run when the status date at the top of `references/sources.md` is more than one 
 5. **Record it** in `report.json` under `sourceUpdate` (see `references/report-json.md`): checked date, every change with its effect, what could not be verified, and the concrete to-dos for the skill (which file and entry to change). The long report shows this in the chapter "Prüfumfang und Prüfgrundlagen", section "Aktualität der Prüfgrundlagen".
 6. **Tell the user** in German in one short paragraph that the skill files are out of date and that the to-dos are in the long report (and in `daten/report.json`), to be applied in the development copy.
 
-Because the files stay unchanged, this check repeats on every run until an updated version of the skill is installed.
+The files stay unchanged; the next offer comes three months later (question U2), and an updated version of the skill arrives through question U1.
 
 ## B. Applying the changes (maintenance session in the development copy, only on request)
 
 1. Work through the to-dos from section A (or redo A first): update the affected entries in `references/checklist.md` (including priority rules and the "common reason for a warning letter" property), `references/sources.md` rows with the new retrieval date, `references/upcoming.md` (move rules that now apply into the checklist), text drafts in `templates/texte/`, and if needed the automatic checks in `scripts/lib/checks/` with a test.
-2. Set the status date at the top of `references/sources.md`, `references/checklist.md` and `references/upcoming.md` to today, even when nothing changed.
+2. Set the status date at the top of `references/sources.md`, `references/checklist.md` and `references/upcoming.md` to today, even when nothing changed. Refresh the expected „Stand“ lines in `data/law-status.json` for every law you checked, so that installed copies do not offer the same change again.
 3. Run `npm test`; it must pass.
 4. Report in German what changed and what could not be verified. Commit and push only after the user agrees (decision 7a); afterwards the installed copy is updated from GitHub.
 
@@ -38,6 +38,6 @@ A scheduled task on the maintainer's computer runs this section at the end of ev
 2. **Currency of the recorded sources:** Re-fetch every row of `references/sources.md` (time limit 30 seconds each; skip and report what exceeds it); compare act versions, "Stand" lines and guidance versions; check the `provider.source` pages of `data/third-parties.json` the same way (entity or country changed, page gone).
 3. **Improvements:** Collect improvement potential from the run's own findings, `skill-erkenntnisse` notes of recent website checks (if present outside the repository) and open GitHub issues. Apply automatically only: legal changes (section B.1), source updates, corrections of wrong or outdated content, provider data, and bug fixes (decision 62a). Everything else (new checks, new report parts, new questions, changed behaviour beyond what a legal change requires) goes into the report as numbered proposal questions with options; it is built only after the maintainer agrees.
 4. **Bug hunt:** Run `npm test`, `npm audit`, the consistency tests, and a review of the code changed since the last quarterly run; fix confirmed bugs with a test that fails without the fix.
-5. **Housekeeping:** Set the status dates (B.2), bump the patch or minor version in `package.json` and `package-lock.json`, update README, GitHub description and, if the scope changed, topics as for every release.
+5. **Housekeeping:** Set the status dates (B.2), refresh the expected „Stand“ lines in `data/law-status.json` (`node scripts/update-check.mjs --laws` shows the differences), bump the patch or minor version in `package.json` and `package-lock.json`, update README, GitHub description and, if the scope changed, topics as for every release.
 6. **Publish only if every gate passes (decision 63a):** `npm test` exit 0; `npm audit` with 0 vulnerabilities; SkillSpector (`--no-llm`) on a git archive of the new commit with no finding beyond the last installed version; no personal data, e-mail addresses or local paths in the diff or commit metadata (noreply address). Then commit, push, and update the installed copy (`git pull`, `npm ci --ignore-scripts`, `npm test`, `npm audit`) and its entry in the maintainer's skills-installed list. If any gate fails: publish nothing, leave the changes uncommitted in the development copy and report the failing output.
 7. **Report:** Write a German report as `.txt` next to the repository (never inside it), named `JJJJMMTT_v<Version>_website-legal-check-de_Quartalsupdate.txt`: what changed and why (with sources), what could not be verified, gate results, open proposal questions. Check that no own processes are left running.

@@ -1,6 +1,6 @@
 # Upcoming and discussed rules
 
-Upcoming status: 2026-11-07. Maintained by the monthly update (references/update.md). During a run, check the site against every entry whose "Affects" fits the site and report the relevant ones in the chapter "Kommende und diskutierte Regeln" (report.json "upcoming"). Re-fetch every source you cite. Entries that start to apply move into references/checklist.md.
+Upcoming status: 2026-11-07. Maintained by the quarterly update (references/update.md). During a run, check the site against every entry whose "Affects" fits the site and report the relevant ones in the chapter "Kommende und diskutierte Regeln" (report.json "upcoming"). Re-fetch every source you cite. Entries that start to apply move into references/checklist.md.
 
 Status legend: **PROPOSAL** (in legislative procedure) · **PLANNED** (Commission initiative, no proposal yet) · **ADOPTED-NYA** (adopted, not yet applicable) · **PARTLY** (partly applicable, further dates pending) · **WITHDRAWN/DROPPED**.
 

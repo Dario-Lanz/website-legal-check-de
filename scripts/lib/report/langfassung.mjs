@@ -143,7 +143,7 @@ ${rows ? `<h3>${t.long.assumptions}</h3><p>${t.long.assumptionsLead}</p>${counte
 </section>`;
 }
 
-/** Scope of the check, checks without finding, discarded hits and the monthly update check. */
+/** Scope of the check, checks without finding, discarded hits and the source update (question U2). */
 function scopeChapter(model) {
   const { t } = model;
   const list = (items) => (items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : `<p>${t.none}</p>`);

@@ -2,7 +2,7 @@
 
 Checklist status: 2026-11-07
 
-Maintenance: refresh monthly following references/update.md; change entries only together with `references/sources.md`.
+Maintenance: refresh quarterly following references/update.md; change entries only together with `references/sources.md`.
 
 All legal content comes from research fetched on 2026-11-07; source IDs (SRC-xx) are in `references/sources.md`. Points marked **UNVERIFIED** were not confirmed in a fetched official source and must not be presented as fact. Report text (quoted German) is generic; Claude fills `[…]` from scan evidence.
 
@@ -10,13 +10,14 @@ All legal content comes from research fetched on 2026-11-07; source IDs (SRC-xx)
 
 | Prio | Meaning | Condition |
 |---|---|---|
-| 1 | Sofort beheben | Clear duty for this site (supported by site evidence, not only by a default assumption), evidence unambiguous after Claude's verification, high risk (consent/tracking, imprint, privacy policy link, HTTPS, prices, withdrawal, order button, cancellation button). |
+| 1 | Sofort beheben | Clear duty for this site (supported by site evidence, not only by a default assumption), evidence unambiguous after Claude's verification, high risk (consent/tracking, imprint, privacy policy link, HTTPS, prices, withdrawal, order button, cancellation button); also every confirmed gap of a duty marked „Common reason for a warning letter: yes“ (rule below). |
 | 2 | Zeitnah beheben | Gap whose duty depends on a scope assumption without clear site evidence, or medium risk. |
 | 3 | Empfehlung / Bitte prüfen | Recommendations, `kind: check` ("Bitte prüfen"), scanner hints that Claude could neither confirm nor rule out. |
 
 General moves:
 - A finding resting on a default assumption (see "Scope assumptions") is at most Prio 2. If the site evidence makes the scope clear (e.g. "inkl. MwSt." prices plus cart), the assumption is not needed and the default priority applies.
 - A scanner `hint` that Claude confirms with evidence becomes `kind: gap` and takes the check's gap priority; one Claude cannot confirm stays `kind: check`, Prio 3.
+- A confirmed gap (`kind: gap`) of a duty or sub-item marked „Common reason for a warning letter: yes“ takes Prio 1 (user decision 82–84). The rule on default assumptions above still wins (at most Prio 2), `kind: check` stays Prio 3, and sub-items whose own marker is not „yes“ keep their default priority (e.g. the outdated „§ 5 TMG“ reference, fonts other than Google Fonts).
 - A scanner `gap` that Claude cannot confirm is downgraded to `kind: check`, Prio 3; a false positive is dropped with a one-line reason in the appendix.
 
 ⚠ marker (`abmahnung: true`): a fixed property of the duty, taken from research D (evaluation commissioned by the BMJ, court and association cases; SRC-85). Set it only where the entry below says "yes". The report note is always „⚠ häufiger Abmahngrund – Erfahrungswert, keine Bewertung des Einzelfalls“. Background for the long report: since 2020, competitors get no reimbursement of warning costs for information and labelling duties in e-commerce and, for businesses with usually fewer than 250 staff, for GDPR breaches (§ 13 Abs. 4 UWG, SRC-77); the injunction claim stays, and associations and chambers are not covered by that exclusion, so the typical sender is an association (§ 8 Abs. 3 UWG, SRC-75; § 2 UKlaG, SRC-79). The frequency data date from 2021/2022.
@@ -47,7 +48,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** Providers of commercial digital services, in practice nearly all business websites incl. ad-financed blogs. Depends on A-2.
 - **Scanner observation:** Per scanned page, a link matching Words[imprint-link]: „impressum“, „imprint“, „anbieterkennzeichnung“, „legal notice“. `gap` if missing on any page (title: none at all, or n of m pages), with up to 3 screenshots and 400 characters of footer text; `ok` otherwise. A visible link to the site itself (same registrable domain) is `ok`. A link to another domain (e.g. a group imprint) or one that exists in the page but is not visible (e.g. collapsed footer menu) is found but gives one `hint` „link leads to another domain or is not visible, please check“ (`evidence.otherDomain`, `evidence.notVisible`) instead of `ok`; links to known third-party vendor hosts (services in `data/third-parties.json`, `policies.google.com`) do not count at all. Pages that answer with HTTP status 400 or higher are not counted. An imprint page with such a status is a separate `gap` (also for DSE-01 with the privacy page), and replaces the `ok`. No page scanned → `hint`.
 - **How Claude verifies:** Open the `-fusszeile` screenshots of the listed pages. False positives: icon-only link whose URL has no matching word (e.g. `/legal`), link inside a „Rechtliches“ menu, error or redirect pages in the sample. A link reachable only via an intermediate page is „Bitte prüfen“ (≤ 2 clicks is a convention, not a legal value). Check that the consent dialog does not cover the link (DSK OH Rz. 121).
-- **Default priority:** 1. Move to 2 if missing only on isolated special pages (e.g. a landing page outside the main navigation).
+- **Default priority:** 1 (⚠), also when the link is missing only on isolated special pages.
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Auf [n] von [m] geprüften Seiten fehlt ein Link zum Impressum.“ / „Auf keiner geprüften Seite wurde ein Link zum Impressum gefunden.“ Vorschrift: „§ 5 Abs. 1 DDG“.
 - **Fix steps:** Add a text link „Impressum“ to the footer of every page (incl. checkout and landing pages); keep it outside the consent dialog's overlay.
@@ -61,7 +62,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Scanner observation:** On the first page classified as imprint: `gap` if the text contains no e-mail pattern or one of Words[imprint-email]: „[at]“, „(at)“, „@“; `hint` if no postcode + town is recognised (5-digit German, `A-dddd`/`CH-dddd` or 4-digit plus capitalised word, not after ©/copyright and not a year 19xx/20xx). No imprint page → no IMP-02 finding.
 - **How Claude verifies:** Read the imprint screenshot. False positives: e-mail shown as image or inserted by script, foreign address formats, imprint split over several pages. Also note visible gaps the scanner does not test: legal form without representative, GmbH/UG without register entry, P.O.-box-only address, contact form instead of e-mail. Legal form, representative, register, chamber and an outdated „§ 5 TMG“ reference are covered by IMP-04.
 - **Default priority:** 1 for missing e-mail or address; 3 for an outdated „§ 5 TMG“ reference.
-- **Common reason for a warning letter:** yes.
+- **Common reason for a warning letter:** yes; the outdated reference alone: uncertain.
 - **Report:** Was fehlt: „Im Impressum fehlt eine E-Mail-Adresse.“ / „Im Impressum wurde keine vollständige Postanschrift erkannt.“ Vorschrift: „§ 5 Abs. 1 Nr. [1|2] DDG“.
 - **Fix steps:** Give the e-mail address as text; add street, postcode and town of the establishment; complete legal form, representative and register data.
 - **Help:** draft `impressum.md`; no mock-up; sources SRC-16.
@@ -73,7 +74,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** As IMP-01, only if a VAT ID exists (not observable).
 - **Scanner observation:** `hint` if the imprint text has none of Words[imprint-vat-id]: „umsatzsteuer“, „ust-id“, „ust-idnr“, „vat“.
 - **How Claude verifies:** Check the imprint screenshot; small businesses may have no VAT ID. Never assume one exists.
-- **Default priority:** 3 („Bitte prüfen“).
+- **Default priority:** 3 („Bitte prüfen“, `kind: check`); 1 if Claude confirms that a VAT ID exists elsewhere on the site but is missing in the imprint (⚠).
 - **Common reason for a warning letter:** yes (as part of the Impressum duty).
 - **Report:** Was fehlt: „Im Impressum ist keine USt-IdNr. angegeben – nur nötig, wenn eine vergeben wurde.“ Vorschrift: „§ 5 Abs. 1 Nr. 6 DDG“.
 - **Fix steps:** If a VAT ID or Wirtschafts-IdNr. exists, add it to the imprint.
@@ -86,7 +87,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** As IMP-01 (A-2). Representative: juristische Personen only (GmbH, UG, AG, SE, KGaA, eG, e.V.), as worded in Nr. 1; whether partnerships (KG, OHG) must name one is UNVERIFIED. Register: forms entered in a register by law (also KG, OHG, PartG, e.K.); the GbR is left out because its registration is optional.
 - **Scanner observation:** On the first page classified as imprint, one `hint` each: a legal person's form without Words[imprint-representative]: „geschäftsführ“, „vertreten durch“, „vertretungsberechtigt“, „vorstand“ (evidence `missing: representative`); a registered form without Words[imprint-register]: „handelsregister“, „registergericht“, „registernummer“, „HRB 123“ (or another …register or a number like `HRB 123`) (`missing: register`); a chamber profession (Words[imprint-profession]: „Rechtsanwalt“, „Steuerberater“, „Wirtschaftsprüfer“, „Notar“, „Patentanwalt“, „Arzt“, „Facharzt“, „Zahnarzt“, „Tierarzt“, „Apotheker“, „Architekt“, „Innenarchitekt“, „Landschaftsarchitekt“, „Psychotherapeut“, „beratender Ingenieur“) without the word Words[imprint-chamber]: „Kammer“ (`missing: chamber`); a reference to Words[imprint-tmg]: „§ 5 TMG“, „Telemediengesetz“ (`outdated: § 5 TMG`). „AG“ right after „Registergericht“, „Amtsgericht“, „Handelsregister“ or followed by a place and `HRA`/`HRB` counts as the court, not as a legal form. Any „§ <n> … TMG“ counts as outdated, unless the TMG is named as the former law („früher“, „ehemals“, „vormals“, „bisher“, e.g. „§ 5 DDG (früher TMG)“) or the same sentence says it was replaced after the TMG („abgelöst“, „ersetzt“, „aufgehoben“, „außer Kraft“, e.g. „Das TMG wurde abgelöst“). No imprint page → no IMP-04 finding.
 - **How Claude verifies:** Read the imprint screenshot and text. False positives: a legal form named for another company (e.g. host, agency credit), a profession mentioned outside the provider's own data, register data on a linked page, the chamber named only by its abbreviation. For a chamber profession also check title, state and professional rules (Nr. 5 b, c), which the scanner does not test.
-- **Default priority:** 2 for representative, register and chamber; 3 for the outdated „§ 5 TMG“ reference (cosmetic: the duty itself has not changed).
+- **Default priority:** 1 for a confirmed missing representative, register or chamber (⚠); 3 for the outdated „§ 5 TMG“ reference (cosmetic: the duty itself has not changed).
 - **Common reason for a warning letter:** yes (as part of the Impressum duty); the outdated reference alone: uncertain.
 - **Report:** Was fehlt: „Im Impressum fehlt bei der Rechtsform [GmbH] der Vertretungsberechtigte.“ / „Im Impressum fehlen Registergericht und Registernummer.“ / „Im Impressum wird ein Kammerberuf genannt, aber keine Kammer.“ / „Das Impressum verweist noch auf § 5 TMG; die Pflicht steht heute in § 5 DDG.“ Vorschrift: „§ 5 Abs. 1 Nr. [1|4|5] DDG“.
 - **Fix steps:** Add the representative (e.g. „Geschäftsführer: …“), the register court and number, or the chamber with professional title, state and rules; replace „§ 5 TMG“ with „§ 5 DDG“.
@@ -303,7 +304,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** Electronic commerce, B2C and B2B, where AGB are used (not observable).
 - **Scanner observation:** With shop signals: `hint` if no page links to Words[terms-link]: „agb“, „geschäftsbedingungen“, „terms“.
 - **How Claude verifies:** Look for other labels („Nutzungsbedingungen“, „Vertragsbedingungen“, „Liefer- und Zahlungsbedingungen“). AGB only in a modal without URL, as image or not printable → finding.
-- **Default priority:** 3; 2 if the checkout refers to AGB that are not retrievable.
+- **Default priority:** 3 as `kind: check` if no AGB are found (there is no duty to have AGB); 1 if the checkout refers to AGB that are not retrievable (⚠).
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Es wurden keine abrufbaren AGB gefunden.“ Vorschrift: „§ 312i Abs. 1 S. 1 Nr. 4 BGB“.
 - **Fix steps:** Own AGB page with stable URL linked in footer and on the final order page; offer a PDF; the skill does not draft AGB.
@@ -316,7 +317,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** B2C contracts obliging payment (A-1, A-3); not individual communication, not financial services.
 - **Scanner observation:** No page classified as checkout → `hint` „not reachable, check manually“. Otherwise visible checkout buttons matching Words[order-button]: „bestell“, „kaufen“, „buy“, „order“, „zahlen“, „abschließen“, „absenden“, „submit“ whose label does not match the accepted set (whole label exactly Words[order-button-accepted]: „zahlungspflichtig bestellen“, „kostenpflichtig bestellen“, „zahlungspflichtigen Vertrag abschließen“, „kaufen“, „jetzt kaufen“) → `gap` with labels; all accepted → no finding.
 - **How Claude verifies:** Confirm the button is the final one; „Weiter zur Bestellübersicht“ or „Bestellung prüfen“ on an intermediate step are false positives. Labels with extra text such as „Jetzt kaufen und weiter zur Zahlung“ are reported as gap (such a label was enjoined: LG Hildesheim 11 O 5/25, date UNVERIFIED); check the exact label. Equivalence of alternatives beyond the statutory wording is case law (UNVERIFIED).
-- **Default priority:** 1 for a confirmed gap; 3 for the unreachable hint (manual check, see MAN-08).
+- **Default priority:** 1 for a confirmed gap; 3 as `kind: check` for the unreachable hint (manual check, see MAN-08).
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Der Bestellbutton ist mit „[Text]“ beschriftet statt eindeutig mit „zahlungspflichtig bestellen“.“ Vorschrift: „§ 312j Abs. 3 BGB“.
 - **Fix steps:** Label exactly „zahlungspflichtig bestellen“, no further text in the button; legible size and contrast.
@@ -329,7 +330,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** B2C subscriptions concluded online (A-1, A-6); not financial services.
 - **Scanner observation:** With shop signals: `hint` if page text contains subscription wording (Words[subscription]: „Abo“, „Abonnement“, „Mitgliedschaft“, „/Monat“, „Mindestlaufzeit“ …) and nowhere Words[cancel-button]: „verträge hier kündigen“, „vertrag hier kündigen“, „kündigungsbutton“.
 - **How Claude verifies:** Search links for „kündig“. False positives: instalment prices „/Monat“, subscriptions only offline. A login gate before the button is a strong signal (case law UNVERIFIED). Labels like „Kündigung“ in an FAQ do not meet the wording.
-- **Default priority:** 1 when an online-concluded subscription is evident and no button exists; 3 while unclear.
+- **Default priority:** 1 when an online-concluded subscription is evident and no button exists; 3 as `kind: check` while unclear.
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Für online abschließbare Abonnements fehlt der Button „Verträge hier kündigen“.“ Vorschrift: „§ 312k BGB“.
 - **Fix steps:** Footer button „Verträge hier kündigen“ → public form without login → button „jetzt kündigen“ → on-screen and e-mail confirmation; no retention offers on the confirmation page.
@@ -355,7 +356,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** B2C distance selling of goods (A-1).
 - **Scanner observation:** `hint` for pages with prices whose text lacks Words[shipping-note]: „versand“, „lieferkosten“, „shipping“.
 - **How Claude verifies:** Services and downloads without shipping are false positives; check whether the linked shipping page names amounts.
-- **Default priority:** 2; 1 if goods are shipped and no shipping information exists anywhere.
+- **Default priority:** 1 for a confirmed gap (⚠).
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Bei Preisen auf [Seiten] fehlt ein Hinweis auf Versandkosten.“ Vorschrift: „§ 6 Abs. 2 PAngV“.
 - **Fix steps:** „zzgl. Versandkosten“ linked to a page with the amounts, or „versandkostenfrei“.
@@ -407,7 +408,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** Sites with newsletter or marketing opt-ins.
 - **Scanner observation:** `hint` for pages with a form containing an e-mail field and the word Words[newsletter]: „newsletter“. The scan never submits forms.
 - **How Claude verifies:** Look at the form screenshot: pre-ticked checkbox, missing withdrawal note or privacy link → `gap`. Double opt-in cannot be seen from outside (MAN-04); DOI case law UNVERIFIED.
-- **Default priority:** 3; 1 if a pre-ticked marketing box is visible.
+- **Default priority:** 3 as `kind: check` (double opt-in cannot be seen from outside); 1 for a confirmed gap (pre-ticked box, missing withdrawal note or privacy link; ⚠).
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Newsletter-Anmeldung gefunden; ob die Einwilligung nachweisbar eingeholt wird (Double-Opt-in), ist von außen nicht prüfbar.“ Vorschrift: „§ 7 Abs. 2 Nr. 2 UWG; Art. 7 DSGVO“.
 - **Fix steps:** Unticked checkbox or dedicated sign-up button; short consent text (content, frequency, provider, withdrawal, privacy link); double opt-in with logging.
@@ -420,7 +421,7 @@ Scope of the scanner for all checks: "scanned pages" are the pages that loaded w
 - **Applies to:** B2C commercial communication (A-1); runs without shop signals.
 - **Scanner observation:** `hint` for pages whose text matches Words[green-claim]: „klimaneutral“, „CO2-neutral“, „klimapositiv“, „umweltfreundlich“, „nachhaltig“, „ökologisch“, „grüne Energie“, „grüne Produkte“ (up to 5 claims).
 - **How Claude verifies:** Read the context: „nachhaltig“ in a non-environmental sense is a false positive; a concrete specification on the same medium lowers the risk; offsetting-based „klimaneutral“ product claim → `gap`.
-- **Default priority:** 2; 1 for offsetting-based neutrality claims or self-made labels; 3 for specified claims.
+- **Default priority:** 1 for a confirmed unsubstantiated claim (⚠); 3 as `kind: check` for specified claims.
 - **Common reason for a warning letter:** yes.
 - **Report:** Was fehlt: „Die Aussage „[Claim]“ wird auf der Seite nicht konkret belegt.“ Vorschrift: „§ 5 UWG; Anhang Nr. [4a] UWG“.
 - **Fix steps:** Replace generic claims by specific, substantiated statements (what, how much, scope, period, source); remove offsetting-based neutrality claims and self-made labels.
