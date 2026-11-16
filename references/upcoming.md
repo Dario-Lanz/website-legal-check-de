@@ -204,3 +204,4 @@ Status legend: **PROPOSAL** (in legislative procedure) · **PLANNED** (Commissio
 10. Final adoption/promulgation of Preisangabengesetz amendment (Drs. 21/5873).
 11. EmpCo (EU) 2024/825 application date 27.09.2026 (not re-fetched).
 12. NIS2UmsuCG BGBl reference.
+13. UWG last amended by Art. 6 G v. 22.10.2026 (BGBl. 2026 I Nr. 322, "Gesetz zur Modernisierung des Designrechts und zur Änderung des Gesetzes gegen den unlauteren Wettbewerb"; found 2026-11-16 via the UWG "Stand" line); content and effect on website checks not checked. Check at the next quarterly update.
