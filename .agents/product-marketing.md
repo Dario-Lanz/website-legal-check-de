@@ -1,7 +1,7 @@
 # Product Marketing Context
 
-**Document version:** v25
-**Last updated:** 2026-11-16
+**Document version:** v26
+**Last updated:** 2026-11-21
 
 Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(Annahme)“ markierte Punkte sind nicht durch Nutzerbefragungen belegt.
 
@@ -141,6 +141,7 @@ Entwurf aus README, SKILL.md, Prüfliste und Quellenliste abgeleitet. Mit „(An
 
 ## Changelog
 *Newest first. One line per revision: what changed and why.*
+- v26 (2026-11-21) — v1.18.0: evaluation after the scan needs far fewer steps (evidence digest, pre-filled report.json, source check in one call; measured 18 and 25 instead of about 55 tool calls) at equal report quality; PDF build rejects unfilled texts. Internal efficiency, no positioning change, description and topics unchanged.
 - v25 (2026-11-16) — v1.17.0: the monthly automatic source re-check is replaced by a check every three months with two Y/N questions (skill update from GitHub, legal sources); confirmed gaps of common warning-letter duties are Prio 1. Product overview and proof table updated.
 - v24 (2026-11-15) — v1.16.0: review by Fable 5.2 and Opus 5.5, about 45 detection fixes (fewer false alarms on cookie banners, VAT notes, shop signals, imprint details), scan time limit --max-minutes, gzip sitemaps, server-side tagging hint, more consent tools, protection against redirects into the local network. No positioning change, description and topics unchanged.
 - v23 (2026-11-14) — v1.15.1: README names the SkillSpector (NVIDIA) security check of every release; the AI note says the author is responsible for code and texts. No positioning change, description and topics unchanged.

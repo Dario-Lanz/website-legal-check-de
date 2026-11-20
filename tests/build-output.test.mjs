@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { buildReports, resultDir } from '../scripts/build-reports.mjs';
 import { prepareImages, IMAGE_WIDTH } from '../scripts/lib/report/images.mjs';
 
-const finding = (over) => ({ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', ...over });
+const finding = (over) => ({ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' }, ...over });
 
 async function fixtureRun() {
   const run = await mkdtemp(path.join(tmpdir(), 'wlc-out-'));

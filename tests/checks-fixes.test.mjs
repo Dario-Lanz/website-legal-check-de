@@ -189,7 +189,7 @@ async function buildFixture(mockupFile, figureSrc = 'belege/seite-01-ansicht.png
   const report = path.join(daten, 'report.json');
   await writeFile(report, JSON.stringify({
     site: 'example.de', date: '07.11.2026', pagesScanned: 1, checklistStatus: '07.11.2026',
-    findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E',
+    findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' },
       figures: [{ src: figureSrc, caption: 'c' }], mockup: { file: mockupFile, description: 'd' } }],
   }));
   return { run, daten, report };

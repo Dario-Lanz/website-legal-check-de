@@ -1,0 +1,79 @@
+{
+ "siteProfile": {
+  "shopSignals": true,
+  "platform": {
+   "name": "WordPress",
+   "confidence": "high",
+   "evidence": [
+    "meta generator „WordPress 6.5“"
+   ],
+   "extras": [
+    "WooCommerce"
+   ]
+  },
+  "pagesScanned": 3,
+  "pagesFailed": [],
+  "pagesSkipped": [],
+  "pageTypes": [
+   "other",
+   "shop",
+   "imprint"
+  ]
+ },
+ "findings": [
+  {
+   "check": "TDD-01",
+   "status": "gap",
+   "title": "Google Analytics loaded before consent",
+   "pages": [
+    "https://www.beispiel.de/",
+    "https://www.beispiel.de/shop/"
+   ],
+   "evidence": {
+    "service": "Google Analytics",
+    "category": "analytics",
+    "requests": [
+     "https://www.googletagmanager.com/gtag/js?id=G-1"
+    ]
+   }
+  },
+  {
+   "check": "TDD-01",
+   "status": "gap",
+   "title": "Google Maps loaded before consent",
+   "pages": [
+    "https://www.beispiel.de/shop/"
+   ],
+   "evidence": {
+    "service": "Google Maps"
+   }
+  },
+  {
+   "check": "PRC-01",
+   "status": "hint",
+   "title": "Prices shown without a VAT note",
+   "pages": [
+    "https://www.beispiel.de/shop"
+   ],
+   "evidence": {
+    "screenshots": [
+     "belege/seite-02-ansicht.jpg"
+    ]
+   }
+  },
+  {
+   "check": "ZZZ-99",
+   "status": "gap",
+   "title": "Unknown check",
+   "pages": [],
+   "evidence": {}
+  },
+  {
+   "check": "IMP-01",
+   "status": "ok",
+   "title": "Imprint link on every scanned page",
+   "pages": [],
+   "evidence": {}
+  }
+ ]
+}

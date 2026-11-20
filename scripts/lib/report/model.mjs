@@ -61,7 +61,8 @@ export function link(url, text) {
 
 function requireFields(object, fields, where) {
   for (const field of fields) {
-    if (object[field] === undefined || object[field] === null || object[field] === '') {
+    const value = object?.[field];
+    if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
       throw new Error(`report.json: missing "${field}" in ${where}`);
     }
   }
@@ -69,10 +70,17 @@ function requireFields(object, fields, where) {
 
 function checkFinding(f, index) {
   const where = `findings[${index}]`;
-  requireFields(f, ['prio', 'kind', 'title', 'what', 'where', 'law', 'fix', 'evidence'], where);
+  requireFields(f, ['prio', 'kind', 'title', 'summary', 'what', 'where', 'law', 'fix', 'evidence'], where);
+  requireFields(f.plain, ['where', 'law', 'evidence'], `${where}.plain`);
   if (!PRIORITIES.includes(f.prio)) throw new Error(`report.json: ${where}.prio must be 1, 2 or 3`);
   if (!KINDS.has(f.kind)) throw new Error(`report.json: ${where}.kind must be "gap" or "check"`);
-  for (const s of f.sources ?? []) requireFields(s, ['title', 'url', 'use'], `${where}.sources`);
+  for (const fig of f.figures ?? []) requireFields(fig, ['src', 'caption'], `${where}.figures`);
+  checkSources(f.sources, `${where}.sources`);
+}
+
+/** Every cited source needs title, URL, use and the date it was fetched (decision 98a). */
+function checkSources(sources, where) {
+  for (const s of sources ?? []) requireFields(s, ['title', 'url', 'use', 'retrieved'], where);
 }
 
 /**
@@ -84,6 +92,7 @@ function checkFinding(f, index) {
 export function buildModel(data, customTexts) {
   requireFields(data, ['site', 'date', 'pagesScanned', 'checklistStatus', 'findings'], 'report');
   data.findings.forEach(checkFinding);
+  (data.upcoming ?? []).forEach((u, i) => checkSources(u.sources, `upcoming[${i}].sources`));
   const findings = PRIORITIES.flatMap((prio) => data.findings.filter((f) => f.prio === prio))
     .map((f, i) => ({ ...f, no: i + 1, steps: f.steps ?? [], figures: f.figures ?? [], sources: f.sources ?? [], abmahnung: Boolean(f.abmahnung) }));
   const language = customTexts ? customTexts.lang : (data.language === 'en' ? 'en' : 'de');

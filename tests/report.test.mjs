@@ -11,7 +11,7 @@ import { renderLangfassung } from '../scripts/lib/report/langfassung.mjs';
 import { buildModel, link } from '../scripts/lib/report/model.mjs';
 
 const finding = (over) => ({
-  prio: 1, kind: 'gap', title: 'T', what: 'W', where: 'X', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', ...over,
+  prio: 1, kind: 'gap', title: 'T', what: 'W', where: 'X', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' }, ...over,
 });
 const data = (findings) => ({ site: 'example.de', date: '07.11.2026', pagesScanned: 3, checklistStatus: '07.11.2026', findings });
 
@@ -97,8 +97,7 @@ test('fact sheet starts with a plain-language summary (German and English)', () 
   assert.match(de, /<tbody><tr><th>Priorität<\/th>[\s\S]*?<\/tr><tr><th>Fundstelle<\/th>[\s\S]*?<\/tr><tr><th>Kurzbeschreibung<\/th><td>Ihre Website lädt Schriften von Google/);
   const en = renderLangfassung(buildModel({ ...data([finding({ summary: 'Your site loads fonts from Google.' })]), language: 'en' }));
   assert.match(en, /<tr><th>Location<\/th>[\s\S]*?<\/tr><tr><th>Summary<\/th><td>Your site loads fonts from Google\./);
-  const fallback = renderLangfassung(buildModel(data([finding({ what: 'Kurz gesagt' })])));
-  assert.match(fallback, /<tr><th>Kurzbeschreibung<\/th><td>Kurz gesagt<\/td>/);
+  assert.throws(() => buildModel(data([finding({ summary: undefined })])), /missing "summary"/, 'no fallback to "what" any more (decision 98a)');
 });
 
 test('every fact-sheet row has a plain-language explanation', () => {
@@ -109,7 +108,7 @@ test('every fact-sheet row has a plain-language explanation', () => {
     assert.ok(sheet.includes(text), text);
   }
   assert.equal((sheet.match(/class="plain"/g) ?? []).length, 4);
-  const en = renderLangfassung(buildModel({ ...data([finding({ plain: { law: 'Cookies only after consent.' } })]), language: 'en' }));
+  const en = renderLangfassung(buildModel({ ...data([finding({ plain: { where: 'Every page.', law: 'Cookies only after consent.', evidence: 'A cookie was set.' } })]), language: 'en' }));
   assert.match(en, /class="plain">Cookies only after consent\./);
   assert.ok(!en.includes('In plain words') && !html.includes('Einfach erklärt'), 'no label before the explanation');
 });
@@ -230,4 +229,22 @@ test('both reports say visibly on the first page that AI (Claude) assisted, in G
       assert.ok(html.includes(phrase), `${language}: ${phrase}`);
     }
   }
+});
+
+test('decision 98a: summary, plain texts, figure fields and retrieved dates are required', () => {
+  const ok = (over) => buildModel(data([finding(over)]));
+  assert.throws(() => ok({ summary: '  ' }), /missing "summary" in findings\[0\]/);
+  for (const key of ['where', 'law', 'evidence']) {
+    assert.throws(() => ok({ plain: { where: 'a', law: 'b', evidence: 'c', [key]: '' } }), new RegExp(`missing "${key}" in findings\\[0\\]\\.plain`));
+  }
+  assert.throws(() => ok({ plain: undefined }), /plain/);
+  assert.throws(() => ok({ figures: [{ src: 'belege/a.jpg', caption: '' }] }), /missing "caption" in findings\[0\]\.figures/);
+  assert.throws(() => ok({ figures: [{ src: '', caption: 'c' }] }), /missing "src"/);
+  const source = { title: 't', url: 'https://x.example/', use: 'u', retrieved: '20.11.2026' };
+  assert.throws(() => ok({ sources: [{ ...source, retrieved: '' }] }), /missing "retrieved" in findings\[0\]\.sources/);
+  assert.throws(() => ok({ sources: [{ ...source, retrieved: undefined }] }), /missing "retrieved"/);
+  assert.equal(ok({ sources: [source], figures: [{ src: 'belege/a.jpg', caption: 'c' }] }).findings.length, 1);
+  const upcoming = { title: 'U', status: 's', short: 's', detail: 'd', relevance: 'r', sources: [{ ...source, retrieved: '' }] };
+  assert.throws(() => buildModel({ ...data([finding()]), upcoming: [upcoming] }), /missing "retrieved" in upcoming\[0\]\.sources/);
+  assert.equal(buildModel({ ...data([finding()]), upcoming: [{ ...upcoming, sources: [source] }] }).upcoming.length, 1);
 });

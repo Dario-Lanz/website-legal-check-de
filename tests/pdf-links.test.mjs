@@ -12,7 +12,7 @@ import { buildReports } from '../scripts/build-reports.mjs';
 const REPO = 'https://github.com/Dario-Lanz/website-legal-check-de';
 const data = {
   site: 'example.de', date: '07.11.2026', pagesScanned: 3, checklistStatus: '07.11.2026',
-  findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E' }],
+  findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' } }],
 };
 
 async function links(pdfFile) {

@@ -89,7 +89,7 @@ function findingChapter(t, f, counters, sourceNo) {
   const rows = [
     [t.long.rows[0], t.prio[f.prio].title, t.prio[f.prio].lead],
     [t.long.rows[1], f.where, plain.where],
-    [t.long.rows[2], f.summary ?? f.what],
+    [t.long.rows[2], f.summary],
     [t.long.rows[3], f.law, plain.law],
     [t.long.rows[4], f.evidence, plain.evidence],
   ].map(([k, v, p]) => `<tr><th>${k}</th><td>${esc(v)}${p ? `<div class="plain">${esc(p)}</div>` : ''}</td></tr>`).join('');

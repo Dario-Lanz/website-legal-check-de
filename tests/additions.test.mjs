@@ -177,7 +177,7 @@ describe('--max-minutes (decision 78a)', () => {
     const note = 'Time limit reached: the browser was closed, the scan is incomplete.';
     const report = {
       site: 'example.de', date: '15.11.2026', pagesScanned: 1, checklistStatus: '15.11.2026', scanNotes: [note],
-      findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: 'X', law: '§ 25 TDDDG', fix: 'F', evidence: 'E' }],
+      findings: [{ prio: 1, kind: 'gap', title: 'T', what: 'W', where: 'X', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' } }],
     };
     assert.ok(renderLangfassung(buildModel(report)).includes(note));
     const skill = await readFile(path.join(ROOT, 'SKILL.md'), 'utf8');

@@ -11,7 +11,7 @@ import { renderLangfassung } from '../scripts/lib/report/langfassung.mjs';
 import { buildModel } from '../scripts/lib/report/model.mjs';
 
 const finding = (over) => ({
-  prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', ...over,
+  prio: 1, kind: 'gap', title: 'T', what: 'W', where: '/x/', law: '§ 25 TDDDG', fix: 'F', evidence: 'E', summary: 'S', plain: { where: 'pw', law: 'pl', evidence: 'pe' }, ...over,
 });
 const data = (findings) => ({ site: 'example.de', date: '07.11.2026', pagesScanned: 3, checklistStatus: '07.11.2026', findings });
 

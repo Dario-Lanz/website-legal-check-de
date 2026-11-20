@@ -1,0 +1,236 @@
+{
+ "tool": "website-legal-check-de",
+ "scannedAt": "2026-07-01T22:30:00.000Z",
+ "durationSeconds": 42,
+ "startUrl": "https://www.beispiel.de/",
+ "host": "www.beispiel.de",
+ "consentGiven": false,
+ "transport": {},
+ "deepCheck": {
+  "decision": "Sample covers all relevant page types; no deeper scan needed."
+ },
+ "reuse": null,
+ "notes": [
+  "Time limit reached after 20 minutes."
+ ],
+ "cookies": [],
+ "requests": [
+  {
+   "page": 1,
+   "url": "https://www.beispiel.de/",
+   "resourceType": "script",
+   "mainFrame": false,
+   "thirdParty": false,
+   "service": null,
+   "category": null
+  },
+  {
+   "page": 1,
+   "url": "https://www.googletagmanager.com/gtag/js?id=G-1",
+   "resourceType": "script",
+   "mainFrame": false,
+   "thirdParty": true,
+   "service": "Google Analytics",
+   "category": "analytics"
+  },
+  {
+   "page": 2,
+   "url": "https://www.googletagmanager.com/gtag/js?id=G-1",
+   "resourceType": "script",
+   "mainFrame": false,
+   "thirdParty": true,
+   "service": "Google Analytics",
+   "category": "analytics"
+  },
+  {
+   "page": 2,
+   "url": "https://fonts.gstatic.com/s/x.woff2",
+   "resourceType": "script",
+   "mainFrame": false,
+   "thirdParty": true,
+   "service": "Google Fonts",
+   "category": "fonts"
+  }
+ ],
+ "pages": [
+  {
+   "index": 1,
+   "url": "https://www.beispiel.de/",
+   "finalUrl": "https://www.beispiel.de/",
+   "status": 200,
+   "headers": {},
+   "pageType": "other",
+   "facts": {
+    "title": "Page 1",
+    "generator": "WordPress 6.5",
+    "lang": "de",
+    "footerText": "Footer 1 Impressum Datenschutz",
+    "bodyText": "Willkommen bei Beispiel. Widerruf und Rückgabe sind einfach. Vertrag widerrufen möglich.",
+    "links": [
+     {
+      "href": "https://www.beispiel.de/impressum",
+      "text": "Impressum",
+      "region": "footer",
+      "visible": true
+     }
+    ],
+    "buttons": [
+     {
+      "text": "Akzeptieren",
+      "visible": true,
+      "region": "banner"
+     }
+    ],
+    "forms": [],
+    "iframes": [],
+    "banner": {
+     "selector": "#cookie",
+     "text": "Wir nutzen Cookies",
+     "buttons": [
+      "Alle akzeptieren",
+      "Einstellungen"
+     ]
+    },
+    "prices": []
+   },
+   "screenshots": {
+    "ansicht": "belege/seite-01-ansicht.jpg",
+    "cookieabfrage": "belege/seite-01-cookieabfrage.jpg",
+    "fusszeile": "belege/seite-01-fusszeile.jpg"
+   },
+   "storage": {
+    "localStorage": [],
+    "sessionStorage": []
+   },
+   "accessibility": {
+    "violations": []
+   }
+  },
+  {
+   "index": 2,
+   "url": "https://www.beispiel.de/shop",
+   "finalUrl": "https://www.beispiel.de/shop/",
+   "status": 200,
+   "headers": {},
+   "pageType": "shop",
+   "facts": {
+    "title": "Page 2",
+    "generator": "WordPress 6.5",
+    "lang": "de",
+    "footerText": "Footer 2 Impressum Datenschutz",
+    "bodyText": "Unser Shop. Alle Preise netto.",
+    "links": [
+     {
+      "href": "https://www.beispiel.de/shopimpressum",
+      "text": "Impressum",
+      "region": "footer",
+      "visible": true
+     }
+    ],
+    "buttons": [
+     {
+      "text": "Akzeptieren",
+      "visible": true,
+      "region": "banner"
+     }
+    ],
+    "forms": [],
+    "iframes": [],
+    "banner": null,
+    "prices": [
+     {
+      "text": "10 €",
+      "context": "Preis 10 € ab Lager"
+     }
+    ]
+   },
+   "screenshots": {
+    "ansicht": "belege/seite-02-ansicht.jpg"
+   },
+   "storage": {
+    "localStorage": [],
+    "sessionStorage": []
+   },
+   "accessibility": {
+    "violations": []
+   }
+  },
+  {
+   "index": 3,
+   "url": "https://www.beispiel.de/impressum",
+   "finalUrl": "https://www.beispiel.de/impressum",
+   "status": 200,
+   "headers": {},
+   "pageType": "imprint",
+   "facts": {
+    "title": "Page 3",
+    "generator": "WordPress 6.5",
+    "lang": "de",
+    "footerText": "Footer 3 Impressum Datenschutz",
+    "bodyText": "Impressum der Beispiel GmbH.",
+    "links": [
+     {
+      "href": "https://www.beispiel.de/impressumimpressum",
+      "text": "Impressum",
+      "region": "footer",
+      "visible": true
+     }
+    ],
+    "buttons": [
+     {
+      "text": "Akzeptieren",
+      "visible": true,
+      "region": "banner"
+     }
+    ],
+    "forms": [],
+    "iframes": [],
+    "banner": null,
+    "prices": []
+   },
+   "screenshots": {
+    "ansicht": "belege/seite-03-ansicht.jpg"
+   },
+   "storage": {
+    "localStorage": [],
+    "sessionStorage": []
+   },
+   "accessibility": {
+    "violations": []
+   }
+  }
+ ],
+ "consentRuns": {
+  "reject": {
+   "choice": "reject",
+   "clicked": true,
+   "button": "Nur notwendige",
+   "bannerGone": true,
+   "visited": [
+    "https://www.beispiel.de/",
+    "https://www.beispiel.de/shop"
+   ],
+   "requests": [
+    {
+     "url": "https://www.googletagmanager.com/gtag/js?id=G-1",
+     "thirdParty": true,
+     "service": "Google Analytics",
+     "category": "analytics",
+     "step": "click"
+    }
+   ],
+   "newCookies": [
+    {
+     "name": "_ga",
+     "domain": ".beispiel.de",
+     "thirdParty": false
+    }
+   ]
+  },
+  "accept": {
+   "choice": "accept",
+   "clicked": false,
+   "reason": "no matching button found"
+  }
+ }
+}
