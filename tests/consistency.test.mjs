@@ -11,6 +11,7 @@ import { CHAMBER, CHAMBER_PROFESSION, OUTDATED_TMG, REGISTER, REPRESENTATIVE } f
 import { EMAIL_PATTERN, VAT_ID_PATTERN } from '../scripts/lib/checks/legal-pages.mjs';
 import { CONSENT_WORDS } from '../scripts/lib/checks/script-tags.mjs';
 import { CANCEL_BUTTON, DISPUTE_NOTICE, GREEN_CLAIM, isCompliantOrderLabel, MANUFACTURER, ORDER_BUTTON, SUBSCRIPTION, WITHDRAW_FUNCTION } from '../scripts/lib/checks/shop.mjs';
+import { BOOKING_CONTRACT, SUBSCRIPTION_PRICE } from '../scripts/lib/checks/service-hints.mjs';
 import { CHAT_TEXT, COMMENT_TEXT, NEWSLETTER } from '../scripts/lib/checks/site.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -83,6 +84,8 @@ const WORD_LISTS = {
   'order-button': ['BTN-01', matches(ORDER_BUTTON)],
   'order-button-accepted': ['BTN-01', isCompliantOrderLabel],
   'subscription': ['KUE-01', matches(SUBSCRIPTION)],
+  'subscription-price': ['KUE-01', matches(SUBSCRIPTION_PRICE)],
+  'booking-form': ['BTN-01', matches(BOOKING_CONTRACT)],
   'cancel-button': ['KUE-01', matches(CANCEL_BUTTON)],
   'vat-note': ['PRC-01', matches(PATTERNS.vatNote)],
   'net-note': ['PRC-01', matches(PATTERNS.netNote)],
@@ -118,4 +121,13 @@ test('every word list in the checklist is recognised by the code pattern of its 
     for (const word of words) if (!recognises(word)) unrecognised.push(`${id} ${key}: „${word}“`);
   }
   assert.deepEqual(unrecognised, []);
+});
+
+test('SRC-59 (W3C WCAG, blocks automated fetches) is marked in sources.md and cited by no checklist entry; BF-01 keeps other reachable sources', async () => {
+  const sources = await read('references/sources.md');
+  assert.match(sources.split('\n').find((l) => l.startsWith('| SRC-59 |')), /blocks automated fetches \(403\); not cited in reports/);
+  const checklist = await read('references/checklist.md');
+  assert.equal(/SRC-59/.test(checklist), false);
+  const help = checklist.split(/^### /m).find((s) => s.startsWith('BF-01 ')).match(/^- \*\*Help:\*\*(.*)$/m)[1];
+  for (const id of ['SRC-50', 'SRC-51', 'SRC-52', 'SRC-53', 'SRC-56']) assert.ok(help.includes(id), id);
 });

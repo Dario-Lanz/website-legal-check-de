@@ -240,7 +240,7 @@ test('legal pages with amounts do not make a shop: no shop checks run for a non-
   assert.equal(looksLikeShop(scan), false);
   assert.deepEqual(checkShop(scan).filter((f) => /^(PRC|WID|BTN|KUE)/.test(f.check)), []);
   scan.pages.push(pageOf(4, 'https://x.de/a', 'other', { prices: price }), pageOf(5, 'https://x.de/b', 'other', { prices: price }));
-  assert.equal(looksLikeShop(scan), true, 'prices on ordinary pages still count');
+  assert.equal(looksLikeShop(scan), false, 'prices on ordinary pages alone are no shop evidence (user decision, fix 4)');
 });
 
 // Finding 5

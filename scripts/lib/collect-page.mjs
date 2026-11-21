@@ -104,11 +104,67 @@ export function collectPageFacts() {
       chosen = inner;
     }
   }
+  // The matched element can be an inner text block of the dialog (Borlabs: [id*="cookie"] inside the box). The evidence
+  // photos, the hiding and the overlap measurement need the whole dialog: climb through positioned (fixed, sticky,
+  // absolute) or consent-tool-named ancestors, but only while the ancestor is still the dialog: its text is at most about
+  // 1.5 times the dialog's text, it has few links outside the dialog (a menu is no dialog), it holds no main, header,
+  // footer or nav, and it is no page wrapper covering the document. Consent-tool-named ancestors skip the text and link tests.
+  const CONSENT_ROOT = /brlbs|borlabs|cmplz|cookiebot|onetrust|usercentrics|didomi|qc-cmp|iubenda|cky-|klaro|cmpbox|cmpwrapper|cookie-law|cookie-notice/i;
+  const MAX_TEXT_RATIO = 1.5;
+  const MAX_OUTSIDE_LINKS = 5;
+  const textOf = (el) => clean(el.innerText || el.textContent, 1_000_000).length;
+  function isStillDialog(n, el, own, docArea) {
+    const style = window.getComputedStyle(n);
+    const rect = n.getBoundingClientRect();
+    const wholePage = style.position !== 'fixed' && rect.width * rect.height >= 0.9 * docArea;
+    const outsideLinks = [...n.querySelectorAll('a[href]')].filter((a) => !el.contains(a)).length;
+    return !wholePage && outsideLinks <= MAX_OUTSIDE_LINKS && textOf(n) <= own * MAX_TEXT_RATIO + 40;
+  }
+  function outermostConsentContainer(el) {
+    const own = textOf(el);
+    const docArea = document.documentElement.clientWidth * Math.max(document.documentElement.scrollHeight, window.innerHeight);
+    let best = el;
+    for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (n.matches('main, header, footer, nav') || n.querySelector('main, header, footer, nav')) break;
+      const named = CONSENT_ROOT.test(`${n.id} ${String(n.className?.baseVal ?? n.className)}`);
+      if (!named && !isStillDialog(n, el, own, docArea)) break;
+      if (named || ['fixed', 'sticky', 'absolute'].includes(window.getComputedStyle(n).position)) best = n;
+    }
+    return best;
+  }
+  // A wrapper without own height (Borlabs renders the box through positioned children) is a visible dialog only when
+  // a descendant is really on screen: positioned (fixed/absolute) and not clipped by a collapsed ancestor, or hit by
+  // elementFromPoint at its centre. A max-height: 0 settings block with cookie text is not (its content is clipped).
+  function clippedByCollapsedAncestor(d, root) {
+    for (let n = d.parentElement; n; n = n.parentElement) {
+      const style = window.getComputedStyle(n);
+      const clips = style.overflowX !== 'visible' || style.overflowY !== 'visible';
+      const rect = n.getBoundingClientRect();
+      if (clips && (rect.height < 4 || rect.width < 4)) return true;
+      if (n === root) break;
+    }
+    return false;
+  }
+  function isOnScreen(d, root) {
+    if (!isVisible(d)) return false;
+    if (['fixed', 'absolute'].includes(window.getComputedStyle(d).position)) return !clippedByCollapsedAncestor(d, root);
+    const rect = d.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
+    const hit = document.elementFromPoint(x, y);
+    return Boolean(hit) && (hit === d || d.contains(hit));
+  }
+  function hasVisibleBox(el) {
+    if (isVisible(el)) return true;
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && [...el.querySelectorAll('*')].some((d) => isOnScreen(d, el));
+  }
   function findBanner() {
     for (const selector of BANNER_SELECTORS) {
-      const chosen = chooseBanner(queryAllDeep(selector).filter(isVisible).map(bannerCandidate).filter(Boolean));
+      const chosen = chooseBanner(queryAllDeep(selector).filter(hasVisibleBox).map(bannerCandidate).filter(Boolean));
       if (!chosen) continue;
-      chosen.el.setAttribute('data-wlc-banner', '1');
+      outermostConsentContainer(chosen.el).setAttribute('data-wlc-banner', '1');
       return { selector, text: chosen.text, buttons: chosen.buttons };
     }
     return null;
@@ -117,8 +173,14 @@ export function collectPageFacts() {
   const banner = findBanner();
 
   const prices = collectPrices();
+  /** Inside content-visibility: hidden nothing is rendered (keeeper: lazy sections), so there is no price on the page. */
+  function isSkippedContent(el) {
+    for (let n = el; n; n = n.parentElement) if (window.getComputedStyle(n).contentVisibility === 'hidden') return true;
+    return false;
+  }
   function collectPrices() {
-    const pattern = /\d{1,3}(?:[.\s]\d{3})*(?:,\d{2}|,-)?\s?(€|EUR)|(€|EUR)\s?\d/g;
+    // „Euro“ spelled out counts; "Europa", "Europäer" do not (no letter, and no hyphen with a letter, may follow the currency word: "Euro-Paletten").
+    const pattern = /\d{1,3}(?:[.\s]\d{3})*(?:,\d{2}|,-)?\s?(?:€|(?:EURO?|[Ee]uro)(?![\p{L}]|-\p{L}))|(?:€|EUR)\s?\d/gu;
     // Amounts of share capital and fines are no offer prices ("Stammkapital: 25.000 €", "bis zu 20.000.000 EUR").
     const notAPrice = /(stammkapital|grundkapital|bußgeld\w*|bis zu)[^\d€]{0,25}$/i;
     const hasPrice = (text) => [...text.matchAll(pattern)].some((m) => !notAPrice.test(text.slice(Math.max(0, m.index - 40), m.index)));
@@ -128,8 +190,11 @@ export function collectPageFacts() {
       const node = walker.currentNode;
       if (!hasPrice(node.nodeValue)) continue;
       const block = node.parentElement?.closest('li, article, tr, section, div, p') ?? node.parentElement;
-      if (!block || !isVisible(node.parentElement)) continue;
-      found.push({ text: clean(node.nodeValue, 60), context: clean(block.innerText, 240) });
+      if (!block || !isVisible(node.parentElement) || isSkippedContent(node.parentElement)) continue;
+      // innerText is empty for content-visibility: auto sections that were not scrolled into view yet: textContent then.
+      const text = clean(node.nodeValue, 60);
+      const context = clean(block.innerText || block.textContent, 240);
+      if (text && context) found.push({ text, context });
     }
     return found;
   }

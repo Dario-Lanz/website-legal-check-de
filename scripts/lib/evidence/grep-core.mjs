@@ -44,10 +44,24 @@ export function searchTexts(scan, pageIndex) {
   return [...merged.values()];
 }
 
-function excerpt(text, match) {
-  const from = Math.max(0, match.index - CONTEXT_CHARS);
-  const to = Math.min(text.length, match.index + match[0].length + CONTEXT_CHARS);
-  return `${from > 0 ? '…' : ''}${oneLine(text.slice(from, to))}${to < text.length ? '…' : ''}`;
+/** Context window of one match as [from, to). */
+const windowOf = (text, match) => [Math.max(0, match.index - CONTEXT_CHARS), Math.min(text.length, match.index + match[0].length + CONTEXT_CHARS)];
+
+const excerptOf = (text, [from, to]) => `${from > 0 ? '…' : ''}${oneLine(text.slice(from, to))}${to < text.length ? '…' : ''}`;
+
+/** Overlapping windows of one text become one passage; `matches` counts the matches inside it. */
+function mergeWindows(windows) {
+  const merged = [];
+  for (const [from, to] of windows) {
+    const last = merged.at(-1);
+    if (last && from <= last.to) {
+      last.to = Math.max(last.to, to);
+      last.matches += 1;
+    } else {
+      merged.push({ from, to, matches: 1 });
+    }
+  }
+  return merged;
 }
 
 /**
@@ -55,25 +69,29 @@ function excerpt(text, match) {
  * beyond `total`, so the total is only known when the search finished.
  * @param {number} [perText] matches shown per text (all pages: MAX_SNIPPETS_PER_TEXT; one page: no limit, so `total` caps)
  * @param {number} [total] distinct snippets shown in all (all pages: MAX_SNIPPETS; one page: MAX_SNIPPETS_ONE_PAGE)
- * @returns {{snippets: {field: string, text: string, pages: number[]}[], capped: boolean, shortened: number[]}} shortened: pages with more matches than shown
+ * @returns {{snippets: {field: string, text: string, matches: number, pages: number[]}[], capped: boolean, shortened: number[]}} shortened: pages with more matches than shown
  */
 export function findMatches(texts, regex, perText = MAX_SNIPPETS_PER_TEXT, total = MAX_SNIPPETS) {
   const snippets = new Map();
   const shortened = new Set();
   for (const source of texts) {
     regex.lastIndex = 0;
-    let taken = 0;
+    const hits = [];
     for (let m = regex.exec(source.text); m !== null; m = regex.exec(source.text)) {
       if (m[0] === '') { regex.lastIndex += 1; continue; } // \b, lookaheads: nothing to show
-      if (taken >= perText) { source.pages.forEach((n) => shortened.add(n)); break; }
-      taken += 1;
-      const text = source.field === 'link' ? source.text : excerpt(source.text, m);
-      const key = `${source.field}\u0000${text}`;
+      if (hits.length >= perText) { source.pages.forEach((n) => shortened.add(n)); break; }
+      hits.push(m);
+      if (source.field === 'link') break;
+    }
+    const passages = source.field === 'link'
+      ? hits.map(() => ({ text: source.text, matches: 1 }))
+      : mergeWindows(hits.map((m) => windowOf(source.text, m))).map((w) => ({ text: excerptOf(source.text, [w.from, w.to]), matches: w.matches }));
+    for (const passage of passages) {
+      const key = `${source.field}\u0000${passage.text}`;
       if (!snippets.has(key) && snippets.size >= total) return { snippets: [...snippets.values()], capped: true, shortened: [...shortened] };
-      const known = snippets.get(key) ?? { field: source.field, text, pages: [] };
+      const known = snippets.get(key) ?? { field: source.field, text: passage.text, matches: passage.matches, pages: [] };
       known.pages = [...new Set([...known.pages, ...source.pages])];
       snippets.set(key, known);
-      if (source.field === 'link') break;
     }
   }
   return { snippets: [...snippets.values()], capped: false, shortened: [...shortened] };

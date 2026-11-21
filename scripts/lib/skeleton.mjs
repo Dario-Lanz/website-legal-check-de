@@ -32,12 +32,19 @@ function sourcesFor(entry, sources) {
 }
 
 const UNQUALIFIED_YES = /^yes\.?$/i;
+const UNQUALIFIED_NO = /^no\.?$/i;
 
-/** `abmahnung: true` only for an unqualified yes; any other checklist line is handed over as a hint for Claude to judge. */
-function warningLetterFields(entry) {
+/**
+ * `abmahnung: true` for an unqualified yes, `false` for an unqualified no (decision 105a). Any other checklist line
+ * ("uncertain", "yes (as part of ...)", "no (only ...)") leaves `abmahnung: null` (the report build rejects it until
+ * Claude decides true or false) and is handed over as `abmahnungHint`.
+ */
+export function warningLetterFields(entry) {
   const line = entry ? warningLetterLine(entry) : null;
-  if (line !== null && UNQUALIFIED_YES.test(line)) return { abmahnung: true };
-  return line === null ? {} : { abmahnungHint: line };
+  if (line === null) return {};
+  if (UNQUALIFIED_YES.test(line)) return { abmahnung: true };
+  if (UNQUALIFIED_NO.test(line)) return { abmahnung: false };
+  return { abmahnung: null, abmahnungHint: line };
 }
 
 function findingSkeleton(f, ctx) {

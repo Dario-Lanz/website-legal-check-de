@@ -15,6 +15,7 @@ import { renderKiPrompt } from './lib/report/ki-prompt.mjs';
 import { renderKurzbericht } from './lib/report/kurzbericht.mjs';
 import { renderLangfassung } from './lib/report/langfassung.mjs';
 import { buildModel } from './lib/report/model.mjs';
+import { hasClickPaths } from './lib/platform-docs.mjs';
 import { renderPdf } from './render-pdf.mjs';
 import { loadCustomTexts } from './translation.mjs';
 
@@ -86,7 +87,7 @@ export function resolveKiPrompt(kiPrompt, data, t) {
     assumption: {
       question: a.question, assumption: name ? a.no : a.yes,
       evidence: name ? a.evidenceSystem(name) : a.evidenceNone,
-      consequence: name ? a.consequenceNo : a.consequenceYes,
+      consequence: !name ? a.consequenceYes : (hasClickPaths(name) ? a.consequenceNo : a.consequenceNoGeneric),
     },
   };
 }

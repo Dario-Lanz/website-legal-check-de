@@ -226,3 +226,12 @@ test('third-party list: valid categories, unique hosts, providers with an https 
     assert.ok(s.provider === null || (s.provider.entity && s.provider.country), `${s.name}: provider fields`);
   }
 });
+
+test('"netto" directly at a price is a net note; look-alike words are not', () => {
+  for (const text of ['ab 1.900 € netto', 'Bis zu 0 € statt 1.900 € netto', '1.900,- € netto', '1.900 EUR netto', 'netto 1.900 €', 'Nettopreis: ab € 1.900', 'Preis: 99 € netto/Monat']) {
+    assert.ok(PATTERNS.netNote.test(text), text);
+  }
+  for (const text of ['Nettogewicht 500 g, Preis 9 €', '12 € Nettogewicht', 'Netto Markendiscount 3 €', 'Das Netto-Gewicht beträgt 5 kg', 'netto ohne Preis', 'ab 1.900 € brutto']) {
+    assert.equal(PATTERNS.netNote.test(text), false, text);
+  }
+});

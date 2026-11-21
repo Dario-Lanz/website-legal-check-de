@@ -25,6 +25,8 @@ const DE = {
   meta: (date, time, pages, status) => `Geprüft am ${date}${time ? ` ${time} Uhr` : ''} · ${pages} Seiten untersucht · Rechtsstand: ${status}`,
   platform: (name, extras) => `Erkanntes System: ${name}${extras ? ` (${extras})` : ''}`,
   platformUnknown: 'Erkanntes System: nicht eindeutig erkennbar',
+  // Appended to a location without path or URL: where the check looked (build time, decision 104a).
+  whereChecked: (url) => `(geprüft u. a. ${url})`,
   translatedNote: 'Dieses Dokument wurde von einer KI aus der englischen Fassung übersetzt; die Übersetzung hat kein Mensch geprüft.',
   // Answer U ("unbekannt") to the AI question (decision 38a): the detected system decides.
   aiUnknown: {
@@ -33,6 +35,7 @@ const DE = {
     evidenceSystem: (name) => `Erkanntes System: ${name}`, evidenceNone: 'Kein Baukasten und kein CMS erkannt',
     consequenceYes: 'Die Langfassung enthält den Prompt für die KI-gestützte Behebung.',
     consequenceNo: 'Kein Prompt; die Anleitungen nutzen die Klickwege des erkannten Systems.',
+    consequenceNoGeneric: 'Kein Prompt; für das erkannte System liegen keine geprüften Klickwege vor, die Anleitungen bleiben allgemein.',
   },
   retrieved: (d) => `abgerufen am ${d}`,
   gap: 'Lücke', check: 'Bitte prüfen', none: 'Keine.', noEntries: 'Keine Einträge.',
@@ -133,6 +136,7 @@ const EN = {
   meta: (date, time, pages, status) => `Checked on ${date}${time ? ` ${time}` : ''} · ${pages} pages examined · Legal status: ${status}`,
   platform: (name, extras) => `Detected system: ${name}${extras ? ` (${extras})` : ''}`,
   platformUnknown: 'Detected system: not clearly identifiable',
+  whereChecked: (url) => `(checked e.g. ${url})`,
   translatedNote: 'This document was translated by AI from the English version; the translation was not reviewed by a person.',
   aiUnknown: {
     question: 'Website built with AI (vibe coding)?',
@@ -140,6 +144,7 @@ const EN = {
     evidenceSystem: (name) => `Detected system: ${name}`, evidenceNone: 'No website builder or CMS detected',
     consequenceYes: 'The long report contains the prompt for fixing with AI.',
     consequenceNo: 'No prompt; the instructions use the click paths of the detected system.',
+    consequenceNoGeneric: 'No prompt; there are no verified click paths for the detected system, so the instructions stay generic.',
   },
   retrieved: (d) => `retrieved on ${d}`,
   gap: 'Gap', check: 'Please check', none: 'None.', noEntries: 'No entries.',

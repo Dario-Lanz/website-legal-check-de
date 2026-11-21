@@ -16,8 +16,19 @@ function reuseLine(reuse) {
   return `from ${reuse.from} (scanned ${reuse.scannedAt}); ${reuse.unchangedPages?.length ?? 0} pages unchanged, ${reuse.changedPages?.length ?? 0} changed or failed`;
 }
 
+/** Whether the consent dialog covered the footer legal links of a page (the page photos hide the dialog). */
+function overlapText(p) {
+  if (p.error || p.skipped) return '';
+  const o = p.bannerOverlap;
+  if (o === undefined) return ' | banner overlap: unknown (page taken over from an earlier scan)';
+  if (o === null) return ' | banner overlap: no dialog';
+  if (o.error) return ` | banner overlap: not measurable (${oneLine(o.error)})`;
+  const tail = [o.notInView ? `${o.notInView} not in view` : '', p.overlay?.restoreFailed ? 'dialog restore failed' : ''].filter(Boolean);
+  return ` | banner overlap: ${o.covered} of ${o.footerLegalLinks} legal links covered${tail.length ? `, ${tail.join(', ')}` : ''}`;
+}
+
 function pageLines(pages) {
-  return pages.map((p) => `  #${p.index} ${p.url} [${p.pageType ?? '?'}] ${p.status ?? 'no status'}${p.finalUrl && p.finalUrl !== p.url ? ` -> ${p.finalUrl}` : ''}`);
+  return pages.map((p) => `  #${p.index} ${p.url} [${p.pageType ?? '?'}] ${p.status ?? 'no status'}${p.finalUrl && p.finalUrl !== p.url ? ` -> ${p.finalUrl}` : ''}${overlapText(p)}`);
 }
 
 /** Third-party hosts of a consent run as "host (service)" strings. */

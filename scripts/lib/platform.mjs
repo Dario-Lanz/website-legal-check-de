@@ -12,6 +12,7 @@ const PLATFORMS = [
   { name: 'Squarespace', generator: /squarespace/i, request: /\/\/[^/]*squarespace(-cdn)?\.com\// },
   { name: 'Webflow', generator: /^webflow/i, request: /\/\/[^/]*(website-files\.com|webflow\.com)\//, dataAttr: 'data-wf-site' },
   { name: 'TYPO3', generator: /typo3/i, request: /\/typo3(conf|temp)\// },
+  { name: 'Framer', generator: /^framer/i, request: /\/\/[^/]*(framerusercontent\.com|framerstatic\.com)\// },
   { name: 'Shopware', generator: /shopware/i, request: /\/bundles\/storefront\// },
 ];
 

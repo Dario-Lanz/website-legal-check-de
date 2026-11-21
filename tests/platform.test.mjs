@@ -33,3 +33,14 @@ test('hosted builders are recognised by their asset hosts or generator', () => {
 test('unknown when no signal is found', () => {
   assert.deepEqual(detectPlatform(scan()), { name: null, confidence: 'none', evidence: [], extras: [] });
 });
+
+test('Framer is recognised by its generator or asset hosts (observed on a real site)', () => {
+  const byGenerator = detectPlatform(scan({ generator: 'Framer c9b3949' }));
+  assert.equal(byGenerator.name, 'Framer');
+  assert.equal(byGenerator.confidence, 'medium');
+  const both = detectPlatform(scan({ generator: 'Framer c9b3949', requests: ['https://framerusercontent.com/images/x.png', 'https://app.framerstatic.com/x.js'] }));
+  assert.equal(both.name, 'Framer');
+  assert.equal(both.confidence, 'high');
+  assert.equal(detectPlatform(scan({ requests: ['https://framerusercontent.com/sites/x.mjs'] })).name, 'Framer');
+  assert.equal(detectPlatform(scan({ requests: ['https://example.de/framerusercontent.com.html'] })).name, null);
+});

@@ -1,6 +1,6 @@
 # Sources
 
-Sources status: 2026-11-07. Every source below was fetched successfully on 2026-11-07 during the research for this skill; rows with a later date were re-checked on that date. "Secondary" marks a source that is not an official legal text or authority publication. Check IDs refer to `references/checklist.md` (automatic checks) and its MAN rows (manual checks).
+Sources status: 2026-11-07. Every source below was fetched successfully on 2026-11-07 during the research for this skill, except SRC-59, which blocks automated fetches (403) and is not cited in reports; rows with a later date were re-checked on that date. "Secondary" marks a source that is not an official legal text or authority publication. Check IDs refer to `references/checklist.md` (automatic checks) and its MAN rows (manual checks).
 
 **During a run (decision 6a):** the skill re-fetches every source it cites in a report. A source that is unreachable at that moment is dropped from the report and not replaced by a guess; if a finding is left without any reachable source, say so in the report.
 
@@ -78,7 +78,7 @@ Sources status: 2026-11-07. Every source below was fetched successfully on 2026-
 | SRC-56 | Bundesfachstelle Barrierefreiheit: Normen und Standards | https://www.bundesfachstelle-barrierefreiheit.de/DE/Barrierefreiheitsstaerkungsgesetz/Normen-und-Standards/normen-und-standards_node | 2026-11-07 | BF-01: EN 301 549 V3.2.1 / WCAG 2.1 as benchmark; M/587 harmonised standards not yet published |
 | SRC-57 | Gewerbeaufsicht Bayern: Marktüberwachung BFSG (MLBF) | https://gewerbeaufsicht.bayern.de/marktueberwachung/bfsg.htm | 2026-11-07 | BF-02: competent market surveillance authority (MLBF, Magdeburg, responsible since 26.09.2025); Land authority page, not MLBF's own site |
 | SRC-58 | axe-core README (Deque) – **secondary (vendor)** | https://github.com/dequelabs/axe-core | 2026-11-07 | BF-01: limits of automated testing (57 % figure), WCAG tags |
-| SRC-59 | W3C Web Content Accessibility Guidelines (WCAG) 2.1 | https://www.w3.org/TR/WCAG21/ | 2026-11-07 | BF-01: success criteria behind axe tags |
+| SRC-59 | W3C Web Content Accessibility Guidelines (WCAG) 2.1 – **blocks automated fetches (403); not cited in reports** | https://www.w3.org/TR/WCAG21/ | 2026-11-07 | BF-01: success criteria behind axe tags; replaced in the Help line by SRC-50 to SRC-53, SRC-55, SRC-56 (EN 301 549 / WCAG 2.1 as benchmark), SRC-58, SRC-60, SRC-92 |
 | SRC-60 | W3C WAI: Selecting Web Accessibility Evaluation Tools | https://www.w3.org/WAI/test-evaluate/tools/selecting/ | 2026-11-07 | BF-01: tools cannot determine accessibility, only assist |
 | SRC-61 | § 12a BGG (accessibility of federal public bodies) | https://www.gesetze-im-internet.de/bgg/__12a.html | 2026-11-07 | MAN-16 |
 | SRC-62 | § 7 BITV 2.0 (accessibility statement of public bodies) | https://www.gesetze-im-internet.de/bitv_2_0/__7.html | 2026-11-07 | MAN-16 |

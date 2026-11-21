@@ -14,7 +14,7 @@ function findingBlock(p, f) {
   const lines = [
     p.finding(f.no, f.title), '',
     p.prioLine(f.prio, f.kind === 'gap' ? p.gapKind : p.checkKind),
-    `- ${p.where}: ${f.where}`,
+    `- ${p.where}: ${f.whereFull}`,
     `- ${p.law}: ${f.law}`,
     `- ${p.target}: ${f.fix}`, '',
     p.observed, '', quote(f.evidence), '',

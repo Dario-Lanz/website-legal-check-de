@@ -35,7 +35,7 @@ function cutPages(indexes) {
 }
 
 function snippetLine(s, urlOf) {
-  return `[${s.field}] ${listedPages(s.pages, urlOf)}: ${s.text}`;
+  return `[${s.field}] ${listedPages(s.pages, urlOf)}: ${s.text}${s.matches > 1 ? ` (${s.matches} matches)` : ''}`;
 }
 
 /**

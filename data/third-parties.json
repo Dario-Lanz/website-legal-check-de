@@ -1448,6 +1448,19 @@
       }
     },
     {
+      "name": "Cloudflare Web Analytics",
+      "category": "analytics",
+      "hosts": [
+        "static.cloudflareinsights.com",
+        "cloudflareinsights.com"
+      ],
+      "keywords": [
+        "cloudflare web analytics",
+        "cloudflare insights"
+      ],
+      "provider": null
+    },
+    {
       "name": "CleanTalk",
       "category": "captcha",
       "hosts": [

@@ -1,6 +1,7 @@
 // Short report (forwardable PDF): findings grouped by priority, one row each.
 
-import { ABMAHN_ICON, esc, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
+import { ABMAHN_ICON, esc, escCell, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
+import { whereHtml } from './where-links.mjs';
 
 const css = (t) => `
   @page { size: A4; margin: 20mm 20mm 20mm 25mm;
@@ -18,11 +19,12 @@ ${TOOL_ROW_CSS}  a { color: #1d4ed8; }
   .summary { display: flex; gap: 4mm; margin: 3mm 0; }
   .summary div { border: 1px solid #ccc; padding: 2mm 3mm; min-width: 30mm; }
   .summary strong { display: block; font-size: 14pt; }
-  table { width: 100%; border-collapse: collapse; font-size: 11pt; }
-  th, td { border: 1px solid #bbb; padding: 1.6mm 2mm; text-align: left; vertical-align: top; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11pt; }
+  th, td { border: 1px solid #bbb; padding: 1.6mm 2mm; text-align: left; vertical-align: top; overflow-wrap: break-word; hyphens: auto; }
   th { background: #f0f0f0; }
+  td a { overflow-wrap: anywhere; hyphens: manual; }
+  .tech { overflow-wrap: anywhere; hyphens: manual; }
   tr { page-break-inside: avoid; }
-  td.no { width: 8mm; }
   .warn { vertical-align: -1px; margin-right: 1mm; }
   .legend, .foot { font-size: 9.5pt; color: #444; margin-top: 2mm; }
   ul.upcoming { margin: 1mm 0; padding-left: 5mm; }
@@ -30,13 +32,17 @@ ${TOOL_ROW_CSS}  a { color: #1d4ed8; }
 
 function row(f) {
   const warn = f.abmahnung ? ABMAHN_ICON : '';
-  return `<tr><td class="no">${f.no}</td><td>${warn}${esc(f.what)}</td><td>${esc(f.where)}</td><td>${esc(f.law)}</td><td>${esc(f.fix)}</td></tr>`;
+  return `<tr><td class="no">${f.no}</td><td>${warn}${escCell(f.what)}</td><td>${whereHtml(f.whereFull)}</td><td>${escCell(f.law)}</td><td>${escCell(f.fix)}</td></tr>`;
 }
+
+/** Column widths in percent of the content width: Nr., Was fehlt, Wo (full URLs), Vorschrift, Behebung. */
+const COLUMN_WIDTHS = [7, 26, 26, 16, 25];
+const COLGROUP = `<colgroup>${COLUMN_WIDTHS.map((w) => `<col style="width: ${w}%">`).join('')}</colgroup>`;
 
 function prioSection(t, { prio, findings }) {
   if (findings.length === 0) return '';
   return `<h2>${t.prio[prio].title}</h2><p class="lead">${t.prio[prio].lead}</p>
-<table><thead><tr>${t.short.columns.map((c) => `<th>${c}</th>`).join('')}</tr></thead>
+<table>${COLGROUP}<thead><tr>${t.short.columns.map((c) => `<th>${c}</th>`).join('')}</tr></thead>
 <tbody>${findings.map(row).join('\n')}</tbody></table>`;
 }
 

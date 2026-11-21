@@ -12,7 +12,7 @@ import { renderKiPrompt } from '../scripts/lib/report/ki-prompt.mjs';
 import { renderKurzbericht } from '../scripts/lib/report/kurzbericht.mjs';
 import { renderLangfassung } from '../scripts/lib/report/langfassung.mjs';
 import { buildModel } from '../scripts/lib/report/model.mjs';
-import { buildSkeleton, siteName } from '../scripts/lib/skeleton.mjs';
+import { buildSkeleton, siteName, warningLetterFields } from '../scripts/lib/skeleton.mjs';
 import { writeSkeleton } from '../scripts/report-skeleton.mjs';
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/run-sample');
@@ -51,23 +51,27 @@ test('one candidate per non-ok finding, with scanner status, hints, pages, figur
   assert.equal(prices.scannerStatus, 'hint');
   assert.equal(analytics.kind, undefined, 'kind is Claude\'s judgement');
   assert.deepEqual(analytics.pages, ['/', '/shop/']);
-  assert.deepEqual(analytics.figureCandidates, ['belege/seite-01-cookieabfrage.jpg', 'belege/seite-01-ansicht.jpg', 'belege/seite-02-ansicht.jpg']);
+  assert.deepEqual(analytics.figureCandidates, ['belege/seite-01-cookieabfrage.jpg', 'belege/seite-02-ansicht.jpg'], 'consent check: the dialog photo where the page has a dialog (-ansicht hides it), else the view');
   assert.equal(analytics.figures, undefined, 'figures are not prefilled');
   assert.equal(analytics.sources[0].url, 'https://www.gesetze-im-internet.de/ttdsg/__25.html');
   assert.deepEqual([analytics.sources[0].use, analytics.sources[0].retrieved], ['', '']);
   assert.deepEqual([unknown.sources, unknown.abmahnung, unknown.abmahnungHint], [[], undefined, undefined]);
 });
 
-test('abmahnung is prefilled only for an unqualified yes, otherwise the checklist line is a hint', () => {
+test('abmahnung is prefilled only for an unqualified yes, otherwise it is null (must be decided) and the checklist line is a hint', () => {
   const [analytics, , prices] = skeleton.findings;
-  assert.equal(analytics.abmahnung, undefined);
+  assert.equal(analytics.abmahnung, null);
   assert.equal(analytics.abmahnungHint, 'uncertain.');
+  assert.deepEqual(warningLetterFields('- **Common reason for a warning letter:** no.'), { abmahnung: false }, 'plain no (decision 105a)');
+  assert.deepEqual(warningLetterFields('- **Common reason for a warning letter:** No'), { abmahnung: false });
+  assert.equal(warningLetterFields('- **Common reason for a warning letter:** no (only the consequence in the consent case, see TDD-01).').abmahnung, null, 'qualified no stays undecided');
+  assert.equal(warningLetterFields('- **Common reason for a warning letter:** yes.').abmahnung, true);
   assert.equal(prices.abmahnung, true, 'PRC-01: "yes."');
   assert.equal(prices.abmahnungHint, undefined);
   const qualified = (check) => buildSkeleton({ scan: run.scan, findings: { siteProfile: {}, findings: [{ check, status: 'gap', title: 'x', pages: [], evidence: {} }] } }, refs, 'de').findings[0];
   for (const check of ['IMP-02', 'TDD-02', 'WID-02']) {
     const f = qualified(check);
-    assert.equal(f.abmahnung, undefined, `${check} is qualified`);
+    assert.equal(f.abmahnung, null, `${check} is qualified: abmahnung must be set explicitly`);
     assert.ok(f.abmahnungHint.length > 0, check);
   }
   assert.equal(qualified('IMP-01').abmahnung, true);
@@ -76,7 +80,7 @@ test('abmahnung is prefilled only for an unqualified yes, otherwise the checklis
 test('figure candidates follow the check: dialog shots for consent checks, footer shots for link checks', () => {
   const shots = (check, pages) => buildSkeleton({ scan: run.scan, findings: { siteProfile: {}, findings: [{ check, status: 'gap', title: 'x', pages, evidence: {} }] } }, refs, 'de').findings[0].figureCandidates;
   const page1 = ['https://www.beispiel.de/'];
-  assert.deepEqual(shots('TDD-04', page1), ['belege/seite-01-cookieabfrage.jpg', 'belege/seite-01-ansicht.jpg']);
+  assert.deepEqual(shots('TDD-04', page1), ['belege/seite-01-cookieabfrage.jpg'], 'only the dialog photo: -ansicht hides the dialog');
   assert.deepEqual(shots('IMP-01', page1), ['belege/seite-01-fusszeile.jpg', 'belege/seite-01-ansicht.jpg']);
   assert.deepEqual(shots('PRC-01', page1), ['belege/seite-01-ansicht.jpg'], 'no dialog or footer shots for other checks');
 });
@@ -93,7 +97,9 @@ test('the existing validation rejects the skeleton until a finding is filled in'
   assert.throws(() => buildModel(structuredClone(skeleton)), /missing "prio" in findings\[0\]/);
   const filled = structuredClone(skeleton);
   const plain = { where: 'w', law: 'l', evidence: 'e' };
-  filled.findings = filled.findings.map((f) => ({ ...f, prio: 1, kind: 'gap', title: 'T', summary: 'S', plain, what: 'W', where: 'X', law: 'L', fix: 'F', evidence: 'E', sources: f.sources.map((s) => ({ ...s, use: 'u', retrieved: '20.11.2026' })) }));
+  const undecided = { ...structuredClone(skeleton), findings: skeleton.findings.map((f) => ({ ...f, prio: 1, kind: 'gap', title: 'T', summary: 'S', plain, what: 'W', where: 'X', law: 'L', fix: 'F', evidence: 'E', sources: [] })) };
+  assert.throws(() => buildModel(undecided), /abmahnung is null: decide abmahnung: true or false, see abmahnungHint/);
+  filled.findings = filled.findings.map((f) => ({ ...f, abmahnung: f.abmahnung ?? false, prio: 1, kind: 'gap', title: 'T', summary: 'S', plain, what: 'W', where: 'X', law: 'L', fix: 'F', evidence: 'E', sources: f.sources.map((s) => ({ ...s, use: 'u', retrieved: '20.11.2026' })) }));
   assert.equal(buildModel(filled).findings.length, 4);
   const emptyUse = structuredClone(filled);
   emptyUse.findings[0].sources[0].use = '';
@@ -138,4 +144,13 @@ test('writeSkeleton refuses to overwrite without --force', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('the build rejects a finding whose abmahnung is still null, but accepts a missing field (old reports)', () => {
+  const finding = { prio: 1, kind: 'gap', title: 'T', summary: 'S', plain: { where: 'w', law: 'l', evidence: 'e' }, what: 'W', where: 'X', law: 'L', fix: 'F', evidence: 'E' };
+  const report = (extra) => ({ ...structuredClone(skeleton), findings: [{ ...finding, ...extra }] });
+  assert.throws(() => buildModel(report({ abmahnung: null })), /findings\[0\]\.abmahnung.*decide abmahnung: true or false, see abmahnungHint/);
+  assert.equal(buildModel(report({})).findings[0].abmahnung, false, 'missing stays allowed');
+  assert.equal(buildModel(report({ abmahnung: true })).findings[0].abmahnung, true);
+  assert.equal(buildModel(report({ abmahnung: false })).findings[0].abmahnung, false);
 });

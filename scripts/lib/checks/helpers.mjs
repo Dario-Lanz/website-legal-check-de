@@ -1,9 +1,10 @@
 // Shared helpers for the check modules. A check returns candidate findings; Claude
 // verifies each against the evidence before it goes into the report.
 
-import { LEGAL_TYPES } from '../page-types.mjs';
+import { classifyPage, LEGAL_TYPES } from '../page-types.mjs';
+import { detectPlatform } from '../platform.mjs';
 import { matchService } from '../third-parties.mjs';
-import { isThirdParty } from '../url.mjs';
+import { isForeignLanguage, isThirdParty, languagePrefix } from '../url.mjs';
 
 /**
  * @typedef {object} Finding
@@ -70,8 +71,18 @@ function hostOf(href) {
   }
 }
 
-/** Find the first scanned page of a type that is not an HTTP error page. */
-export const pageOfType = (scan, type) => contentPages(scan).find((p) => p.pageType === type) ?? null;
+/**
+ * Pages in the language of the start page first (a page without the start URL's language prefix is another language),
+ * then pages that a footer link points to; otherwise the scan order stays.
+ */
+function preferStartLanguage(scan, pages) {
+  const start = languagePrefix(scan.pages?.[0]?.finalUrl ?? scan.startUrl ?? '');
+  const rank = (p) => Number(isForeignLanguage(p.finalUrl ?? p.url, start)) * 2 + Number(!footerLinked(scan, p));
+  return [...pages].sort((a, b) => rank(a) - rank(b));
+}
+
+/** Find the first scanned page of a type that is not an HTTP error page, preferring the start language. */
+export const pageOfType = (scan, type) => preferStartLanguage(scan, contentPages(scan).filter((p) => p.pageType === type))[0] ?? null;
 
 /** Path and title of a page: the host name must not decide what a page is about. */
 const pathAndTitle = (page) => `${safePath(page.finalUrl ?? page.url)} ${page.facts.title ?? ''}`;
@@ -86,8 +97,7 @@ function footerLinked(scan, page) {
 export function policyPage(scan) {
   const typed = pageOfType(scan, 'privacy');
   if (typed) return typed;
-  const candidates = contentPages(scan).filter((p) => PATTERNS.privacy.test(pathAndTitle(p)));
-  return candidates.find((p) => footerLinked(scan, p)) ?? candidates[0] ?? null;
+  return preferStartLanguage(scan, contentPages(scan).filter((p) => PATTERNS.privacy.test(pathAndTitle(p))))[0] ?? null;
 }
 
 export function safePath(href) {
@@ -105,25 +115,51 @@ export const shotsOf = (page) => Object.values(page.screenshots ?? {});
 /** Pages whose prices count: legal pages name amounts (share capital, fines) that are no offer prices. */
 export const pricedPages = (pages) => pages.filter((p) => p.facts.prices.length > 0 && !LEGAL_TYPES.includes(p.pageType));
 
-/** Signals that the site sells to consumers online (prices, cart, checkout). */
-export function looksLikeShop(scan) {
+const CART_BUTTON = /in den warenkorb|add to cart|jetzt kaufen|buy now/i;
+const CART_FORM_ACTION = /add-to-cart|\/cart\b|warenkorb|checkout/i;
+const SHOP_PLATFORMS = ['Shopify', 'Shopware'];
+
+/** A link on the registrable domain of its page (a cart link to another shop is no evidence for this site). */
+const sameSite = (page, l) => !isThirdParty(l.href, hostOf(page.finalUrl ?? page.url));
+
+/**
+ * Real shop evidence: a cart or checkout page, a link to one, an add-to-cart button or form, a shop platform
+ * (Shopify, Shopware) or the WooCommerce add-on, or a product or shop page together with a price.
+ * Prices alone are no evidence: service sites show prices, packages and "/Monat" without selling in a cart.
+ * @returns {string[]} names of the evidence found (empty when the site is no shop)
+ */
+export function shopEvidence(scan) {
   const pages = okPages(scan);
-  const cartButton = pages.some((p) => p.facts.buttons.some((b) => /in den warenkorb|add to cart|jetzt kaufen|buy now/i.test(b.text)));
-  const pricesOnPages = pricedPages(pages).length;
-  // Cart and checkout pages are shop signals by themselves; a product or shop page only together with a price.
-  const cartPage = pages.some((p) => ['cart', 'checkout'].includes(p.pageType));
-  const productPage = pages.some((p) => ['product', 'shop'].includes(p.pageType)) && pricesOnPages >= 1;
-  return cartPage || productPage || cartButton || pricesOnPages >= 2;
+  const found = [];
+  const some = (name, test) => { if (test) found.push(name); };
+  some('cart-or-checkout-page', pages.some((p) => ['cart', 'checkout'].includes(p.pageType)));
+  some('product-page-with-price', pages.some((p) => ['product', 'shop'].includes(p.pageType)) && pricedPages(pages).length >= 1);
+  some('cart-button', pages.some((p) => p.facts.buttons.some((b) => CART_BUTTON.test(b.text))));
+  some('cart-or-checkout-link', pages.some((p) => (p.facts.links ?? []).some((l) => sameSite(p, l) && ['cart', 'checkout'].includes(classifyPage(l.href, l.text)))));
+  some('cart-form', pages.some((p) => p.facts.forms.some((f) => CART_FORM_ACTION.test(f.action))));
+  const platform = detectPlatform(scan);
+  some('shop-platform', SHOP_PLATFORMS.includes(platform.name) || platform.extras.includes('WooCommerce'));
+  return found;
 }
 
+/** Signals that the site sells to consumers online (see shopEvidence; prices alone do not count). */
+export const looksLikeShop = (scan) => shopEvidence(scan).length > 0;
+
+// Amount with bounded digit groups (no catastrophic backtracking on long digit runs).
+const AMOUNT = String.raw`\d{1,9}(?:[.,]\d{1,3}){0,3}(?:,-)?`;
+const EURO = String.raw`(?:€|eur(?:o)?)`;
+// „netto“ directly at the price: "1.900 € netto", "€ 1.900 netto", "netto 1.900 €", "Nettopreis: ab € 1.900"; never "Netto: 5 € sparen".
+const NET_AT_PRICE = String.raw`(?:${AMOUNT}\s{0,3}${EURO}|${EURO}\s{0,3}${AMOUNT})\s{0,3}\(?netto\b(?![-\s]?gewicht)|\bnetto(?:\s{1,3}|-?preise?\s{0,2}:?\s{0,2})(?:ab\s{1,3})?(?:${EURO}\s{0,3}${AMOUNT}|${AMOUNT}\s{0,3}${EURO})`;
+
 export const PATTERNS = {
-  imprint: /impressum|imprint|anbieterkennzeichnung|legal notice/i,
-  privacy: /datenschutz|privacy/i,
+  imprint: /impressum|imprint|anbieterkennzeichnung|legal[\s_-]notice|avviso[\s-]legale|note[\s-]legali|informazioni[\s-]legali/i,
+  privacy: /datenschutz|privacy|(?:^|\/)data[\s-]protection\/?(?:\?.*)?$|data[\s-]protection[\s-](?:policy|notice|declaration|statement)|protezione[\s-]dei[\s-]dati/i,
   withdrawal: /widerruf/i,
   terms: /\bagb\b|geschäftsbedingungen|geschaeftsbedingungen|terms/i,
   accessibility: /barrierefreiheit|accessibility/i,
   vatNote: /enthalten\s+(die\s+)?(gesetzl\w*\.?\s*)?(mwst|mehrwertsteuer|umsatzsteuer|ust)\b|(inkl\.?|inklusive|incl\.?|including|einschl(\.|ießlich|iesslich)|enth(ält|\.)?)\s*(\d+(,\d+)?\s*%\s*)?(der\s+)?((jeweils\s+)?(gültig|geltend|gesetzl)\w*\.?\s*)?(mwst|ust|mehrwertsteuer|umsatzsteuer|vat)\b|(?<!(zzgl\.?|zuzüglich|exkl\.?)\s*(\d+\s*%\s*)?(gesetzl\w*\.?\s*)?)\b(mwst|ust|mehrwertsteuer|umsatzsteuer|vat)\.?\s*(ist\s+)?(enthalten|inklusive(?=\s*(?:[.;!,)]|$))|inkl\.?(?=\s*(?:[;!)]|$)))|§\s*19\s*UStG/i,
-  netNote: /(zzgl\.?|zuzüglich|exkl\.?|netto)\s*(\d+\s*%\s*)?(gesetzl(\.|ichen)?\s*)?(mwst|ust|mehrwertsteuer|umsatzsteuer)/i,
+  // VAT wording after zzgl./exkl./netto, or „netto“ directly at an amount in euros („1.900 € netto“, „netto 1.900 €“; not „Nettogewicht“).
+  netNote: new RegExp(`(zzgl\\.?|zuzüglich|exkl\\.?|netto)\\s*(\\d+\\s*%\\s*)?(gesetzl(\\.|ichen)?\\s*)?(mwst|ust|mehrwertsteuer|umsatzsteuer)|${NET_AT_PRICE}`, 'i'),
   shippingNote: /versand|lieferkosten|shipping/i,
   reject: /ablehnen|nur (technisch )?(notwendige|essenzielle|essentielle|erforderliche)|nur (die )?(notwendigen|essenziellen|essentiellen|erforderlichen)|nicht zustimmen|nicht (zulassen|erlauben)|ohne einwilligung|ohne zustimmung|nein,? danke|(necessary|essential|required) only|only (necessary|essential|required)|reject|deny|decline|refuse|verweigern/i,
   accept: /akzeptieren|zustimmen|einverstanden|erlauben|zulassen|accept|allow|agree|got it|\bok\b|verstanden/i,

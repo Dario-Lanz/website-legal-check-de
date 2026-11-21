@@ -2,6 +2,7 @@
 // button (BGB), dispute resolution notice, product safety and environmental claims.
 
 import { finding, looksLikeShop, okPages, PATTERNS, pricedPages, shotsOf } from './helpers.mjs';
+import { CANCEL_BUTTON_TEXT, servicePricePages, serviceHints } from './service-hints.mjs';
 
 const url = (p) => p.finalUrl ?? p.url;
 export const ORDER_BUTTON = /bestell|kaufen|buy|order|zahlen|bezahlen|abschlie(ß|ss)en|absenden|submit/i;
@@ -13,33 +14,45 @@ export function isCompliantOrderLabel(label) {
   return COMPLIANT_ORDER_BUTTON.test(String(label).replace(/\s+/g, ' ').trim());
 }
 export const SUBSCRIPTION = /\babo\b|abonnement|mitgliedschaft|monatlich kündbar|mindestlaufzeit|\/\s?monat|pro monat|im monat/i;
-export const CANCEL_BUTTON = /verträge hier kündigen|vertrag hier kündigen|kündigungsbutton/i;
+export const CANCEL_BUTTON = CANCEL_BUTTON_TEXT;
 export const WITHDRAW_FUNCTION = /vertrag widerrufen|widerruf hier|widerruf erklären/i;
 export const MANUFACTURER = /hersteller|manufacturer|marke|brand/i;
 const ODR_LINK = /ec\.europa\.eu\/consumers\/odr/i;
 export const DISPUTE_NOTICE = /streitbeilegung|schlichtungsstelle|verbraucherschlichtung/i;
 export const GREEN_CLAIM = /klimaneutral|co2-?neutral|co₂-?neutral|klimapositiv|umweltfreundlich|nachhaltig(er|e|es)?\b|ökologisch|grün(er|e)? (produkt|energie)/i;
 
-function pricesWithoutVat(pages) {
-  return pricedPages(pages)
+const MAX_PRICE_PAGES = 10;
+const MAX_PRICES_PER_PAGE = 3;
+
+/** Evidence of a price finding: every price page (up to 10) with up to three of its prices, and the first two page photos. */
+function priceEvidence(pages) {
+  return {
+    priceExamples: pages.slice(0, MAX_PRICE_PAGES).map((p) => ({ page: url(p), prices: p.facts.prices.slice(0, MAX_PRICES_PER_PAGE).map(({ text, context }) => ({ text, context })) })),
+    screenshots: pages.slice(0, 2).flatMap(shotsOf),
+  };
+}
+
+function pricesWithoutVat(priced) {
+  return priced
     .filter((p) => !PATTERNS.vatNote.test(p.facts.bodyText) && !PATTERNS.netNote.test(p.facts.bodyText));
 }
 
-function priceChecks(pages) {
+/** Without shop evidence the prices only give hints (decision 108a); with it, missing VAT notes are gaps. */
+function priceChecks(pages, shop = true) {
+  const priced = shop ? pricedPages(pages) : servicePricePages(pages);
   const results = [];
-  const noVat = pricesWithoutVat(pages);
+  const suffix = shop ? '' : ' (no shop evidence detected, please check)';
+  const noVat = pricesWithoutVat(priced);
   if (noVat.length > 0) {
-    results.push(finding('PRC-01', 'gap', 'Prices shown without a VAT note (inkl. MwSt.)', noVat.map(url), {
-      priceExamples: noVat.slice(0, 3).map((p) => p.facts.prices[0]), screenshots: noVat.slice(0, 2).flatMap(shotsOf),
-    }));
+    results.push(finding('PRC-01', shop ? 'gap' : 'hint', `Prices shown without a VAT note (inkl. MwSt.)${suffix}`, noVat.map(url), priceEvidence(noVat)));
   }
-  const netOnly = pricedPages(pages).filter((p) => PATTERNS.netNote.test(p.facts.bodyText) && !PATTERNS.vatNote.test(p.facts.bodyText));
+  const netOnly = priced.filter((p) => PATTERNS.netNote.test(p.facts.bodyText) && !PATTERNS.vatNote.test(p.facts.bodyText));
   if (netOnly.length > 0) {
-    results.push(finding('PRC-01', 'hint', 'Only net prices (zzgl. MwSt.) – allowed only if the site addresses businesses exclusively', netOnly.map(url)));
+    results.push(finding('PRC-01', 'hint', 'Only net prices (zzgl. MwSt.) – allowed only if the site addresses businesses exclusively', netOnly.map(url), priceEvidence(netOnly)));
   }
-  const noShipping = pricedPages(pages).filter((p) => !PATTERNS.shippingNote.test(p.facts.bodyText));
+  const noShipping = priced.filter((p) => !PATTERNS.shippingNote.test(p.facts.bodyText));
   if (noShipping.length > 0) {
-    results.push(finding('PRC-02', 'hint', 'Prices without a note on shipping costs', noShipping.map(url)));
+    results.push(finding('PRC-02', 'hint', `Prices without a note on shipping costs${suffix}`, noShipping.map(url), priceEvidence(noShipping)));
   }
   return results;
 }
@@ -55,6 +68,30 @@ function orderButton(pages) {
   return [finding('BTN-01', 'gap', 'Order button label is not "zahlungspflichtig bestellen" or equally clear', [...new Set(bad.map((b) => b.page))], { buttons: bad })];
 }
 
+const ODR_TEXT_CONTEXT = 60;
+const ODR_EXPLANATION_CONTEXT = 100;
+// A sentence that says the platform was shut down explains it and is no outdated reference (flagged, never suppressed).
+const SHUT_DOWN_WORDS = /eingestellt|abgeschaltet|shut down|discontinued/i;
+
+/** ODR-01: the platform address as a link or as plain text (e.g. "https://ec.europa.eu/consumers/odr/" in the imprint text). */
+function odrFindings(pages, links) {
+  const odrLinks = links.filter((l) => ODR_LINK.test(l.href));
+  const mentions = pages.flatMap((p) => {
+    const match = ODR_LINK.exec(`${p.facts.bodyText}\n${p.facts.footerText ?? ''}`);
+    if (!match) return [];
+    const text = `${p.facts.bodyText}\n${p.facts.footerText ?? ''}`;
+    const snippet = text.slice(Math.max(0, match.index - ODR_TEXT_CONTEXT), match.index + match[0].length + ODR_TEXT_CONTEXT).replace(/\s+/g, ' ').trim();
+    const around = text.slice(Math.max(0, match.index - ODR_EXPLANATION_CONTEXT), match.index + match[0].length + ODR_EXPLANATION_CONTEXT);
+    return [{ page: url(p), snippet, possiblyExplanatory: SHUT_DOWN_WORDS.test(around) }];
+  });
+  const linkPages = pages.filter((p) => p.facts.links.some((l) => ODR_LINK.test(l.href))).map(url);
+  const pageList = [...new Set([...linkPages, ...mentions.map((m) => m.page)])];
+  if (pageList.length === 0) return [];
+  return [finding('ODR-01', 'gap', 'Outdated reference to the EU online dispute resolution platform', pageList, {
+    links: odrLinks.slice(0, 3).map((l) => l.href), textMentions: mentions.slice(0, 5),
+  })];
+}
+
 function textChecks(pages) {
   const all = pages.map((p) => p.facts.bodyText).join('\n');
   const links = pages.flatMap((p) => p.facts.links);
@@ -65,8 +102,7 @@ function textChecks(pages) {
   if (!WITHDRAW_FUNCTION.test(all)) {
     results.push(finding('WID-02', 'hint', 'No online withdrawal function labelled "Vertrag widerrufen" found (§ 356a BGB since 19.06.2026)', []));
   }
-  const odr = links.filter((l) => ODR_LINK.test(l.href));
-  if (odr.length > 0) results.push(finding('ODR-01', 'gap', 'Outdated link to the EU online dispute resolution platform', [], { links: odr.slice(0, 3).map((l) => l.href) }));
+  results.push(...odrFindings(pages, links));
   if (!DISPUTE_NOTICE.test(all)) results.push(finding('VSB-01', 'hint', 'No statement on consumer dispute resolution found (VSBG)', []));
   return results;
 }
@@ -86,6 +122,6 @@ function greenClaims(pages) {
 export function checkShop(scan) {
   const pages = okPages(scan);
   const results = [...greenClaims(pages)];
-  if (!looksLikeShop(scan)) return results;
+  if (!looksLikeShop(scan)) return [...priceChecks(pages, false), ...serviceHints(pages), ...results];
   return [...priceChecks(pages), ...orderButton(pages), ...textChecks(pages), ...productChecks(pages), ...results];
 }

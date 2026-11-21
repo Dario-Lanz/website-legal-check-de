@@ -14,7 +14,8 @@ export function pagesByUrl(scan) {
 }
 
 const KIND_RANK = { cookieabfrage: 0, ansicht: 1, fusszeile: 2 };
-const CONSENT_CHECK = /^TDD-/;
+// TDD-08 is about script tags in the markup, not about the dialog.
+const CONSENT_CHECK = /^TDD-(?!08\b)/;
 const FOOTER_CHECK = /^(IMP|DSE|WID|AGB|VSB|ODR|KUE)-/;
 
 /** Screenshots a finding names in its evidence, then those of its pages (consent dialog first, then view, then footer); no duplicates. */
@@ -25,19 +26,24 @@ export function findingScreenshots(finding, scan) {
   return [...new Set([...(finding.evidence?.screenshots ?? []), ...ranked])];
 }
 
-/** Screenshot kinds that can prove a check, best first: dialog for consent checks, footer for link checks, else the view. */
+/** Screenshot kinds that can prove a check, best first: footer for link checks, else the view. Consent checks: see candidateScreenshots. */
 function relevantKinds(check) {
-  if (CONSENT_CHECK.test(check)) return ['cookieabfrage', 'ansicht'];
-  if (FOOTER_CHECK.test(check)) return ['fusszeile', 'ansicht'];
-  return ['ansicht'];
+  return FOOTER_CHECK.test(check) ? ['fusszeile', 'ansicht'] : ['ansicht'];
 }
 
-/** Screenshot candidates for report.json: those named in the evidence, then only the kinds relevant to the check. */
+/**
+ * Screenshot candidates for report.json: those named in the evidence, then only the kinds relevant to the check.
+ * Consent checks get the `-cookieabfrage` photo (the dialog as the visitor sees it; `-ansicht` hides the dialog);
+ * a page without a dialog has no such photo and offers its `-ansicht`.
+ */
 export function candidateScreenshots(finding, scan) {
   const byUrl = pagesByUrl(scan);
-  const kinds = relevantKinds(finding.check);
-  const fromPages = kinds.flatMap((kind) => (finding.pages ?? []).map((url) => byUrl.get(url)?.screenshots?.[kind]).filter(Boolean));
-  return [...new Set([...(finding.evidence?.screenshots ?? []), ...fromPages])];
+  const shotsOfPage = (url) => byUrl.get(url)?.screenshots ?? {};
+  const pages = finding.pages ?? [];
+  const fromPages = CONSENT_CHECK.test(finding.check)
+    ? pages.map((url) => shotsOfPage(url).cookieabfrage ?? shotsOfPage(url).ansicht)
+    : relevantKinds(finding.check).flatMap((kind) => pages.map((url) => shotsOfPage(url)[kind]));
+  return [...new Set([...(finding.evidence?.screenshots ?? []), ...fromPages.filter(Boolean)])];
 }
 
 function pagesLine(finding, scan) {

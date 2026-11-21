@@ -16,6 +16,9 @@ Platforms status: 2026-11-08. Used by workflow step 4 to tailor layperson fix st
 | Webflow | meta generator „Webflow“; HTML attribute `data-wf-site`; requests to `website-files.com` | – |
 | TYPO3 | meta generator containing „TYPO3“; paths `/typo3conf/`, `/typo3temp/` | – |
 | Shopware | meta generator containing „Shopware“; path `/bundles/storefront/` | – |
+| Framer | meta generator starting with „Framer“ (observed: „Framer c9b3949“); requests to `framerusercontent.com` or `framerstatic.com` (observed on a real site together with `framer.com`, `events.framer.com`, `api.framer.com`) | – |
+
+Framer: detection signals only (observed on one real site, no official documentation fetched). No verified click paths exist for Framer; its fix steps stay generic (say that menu names may differ and to search the Framer help for the task), never invent a menu path.
 
 Two or more signals = confidence „high“, one = „medium“. Signals can be wrong (e.g. a WordPress site that loads Shopify buttons); the report names the evidence.
 
@@ -429,5 +432,6 @@ Sources (fetched 2026-11-08):
 - Wix: footer menu, colors/contrast ND; Studio/Harmony editors differ.
 - Shopify/Shopware/Squarespace/Wix: whether built-in fonts load from Google ND (Squarespace says font packs "use Google Fonts").
 - Shopware: order-button snippet key, GA-consent coupling ND. TYPO3: generator tag documented source ND; fonts/tracking integrator-only.
+- Framer: detection signals only, no click paths for any task (ND); fix steps stay generic.
 - Detection signals for Shopify, Jimdo, Shopware not verified (no official doc, no observation).
 - German labels fetched only for Shopify, Wix (banner), Squarespace (banner), Shopware.

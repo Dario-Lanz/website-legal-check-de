@@ -6,8 +6,34 @@ import { contentPages, finding, hasLink, isErrorStatus, legalLinkKind, looksLike
 
 const url = (p) => p.finalUrl ?? p.url;
 
+/**
+ * Per page with a consent banner: did the banner cover the legal links of the footer? The page photos are taken
+ * with the banner hidden, so this is the only trace of an overlap (checklist IMP-01 verification). Measuring problems
+ * (`error`), links outside the view (`notInView`) and a dialog that could not be restored (`overlayError`) are kept.
+ */
+function bannerOverlapEvidence(pages, kind) {
+  const withBanner = pages.filter((p) => p.bannerOverlap);
+  if (withBanner.length === 0) return {};
+  const ofKind = (p) => (p.bannerOverlap.links ?? []).filter((l) => !kind || l.kind === kind);
+  return {
+    bannerOverlap: withBanner.map((p) => ({
+      page: url(p),
+      footerLegalLinks: kind ? ofKind(p).length : p.bannerOverlap.footerLegalLinks,
+      covered: kind ? ofKind(p).filter((l) => l.covered).length : p.bannerOverlap.covered,
+      notInView: kind ? ofKind(p).filter((l) => l.covered === null).length : p.bannerOverlap.notInView ?? 0,
+      ...(p.bannerOverlap.error ? { error: p.bannerOverlap.error } : {}),
+      ...(p.overlay?.error || p.overlay?.restoreFailed ? { overlayError: p.overlay.error ?? p.overlay.restoreFailed } : {}),
+    })),
+  };
+}
+
+/** Pages where the consent dialog sat on top of a visible legal link of this kind (the link exists, but cannot be used before a choice). */
+function coveredPages(pages, kind) {
+  return pages.filter((p) => (p.bannerOverlap?.links ?? []).some((l) => l.kind === kind && l.covered));
+}
+
 /** A legal link must be on every page, on the site itself and visible; report pages without it or with a doubtful one. */
-function linkOnEveryPage(scan, check, pattern, label) {
+function linkOnEveryPage(scan, check, pattern, label, kind) {
   const pages = contentPages(scan);
   if (pages.length === 0) {
     return [finding(check, 'hint', `No page could be scanned, ${label} link not checkable`, [], { pagesFailed: scan.pages.length })];
@@ -23,6 +49,7 @@ function linkOnEveryPage(scan, check, pattern, label) {
     results.push(finding(check, 'gap', title, missing.map(url), {
       screenshots: missing.slice(0, 3).flatMap(shotsOf),
       footerText: missing[0].facts.footerText.slice(0, 400),
+      ...bannerOverlapEvidence(missing, kind),
     }));
   }
   if (doubtful.length > 0) {
@@ -30,6 +57,14 @@ function linkOnEveryPage(scan, check, pattern, label) {
       otherDomain: doubtful.filter((k) => k.kind === 'otherDomain').map((k) => url(k.page)),
       notVisible: doubtful.filter((k) => k.kind === 'hidden').map((k) => url(k.page)),
       screenshots: doubtful.slice(0, 3).flatMap((k) => shotsOf(k.page)),
+      ...bannerOverlapEvidence(doubtful.map((k) => k.page), kind),
+    }));
+  }
+  const covered = coveredPages(pages, kind);
+  if (covered.length > 0) {
+    results.push(finding(check, 'hint', `${label} link is covered by the consent dialog on ${covered.length} of ${pages.length} pages, please check`, covered.map(url), {
+      screenshots: covered.slice(0, 3).flatMap((p) => (p.screenshots?.cookieabfrage ? [p.screenshots.cookieabfrage] : [])),
+      ...bannerOverlapEvidence(covered, kind),
     }));
   }
   return results.length > 0 ? results : [finding(check, 'ok', `${label} link on every scanned page`, [])];
@@ -119,8 +154,8 @@ function shopLegalPages(scan) {
 
 export function checkLegalPages(scan) {
   return [
-    ...withPageErrors(scan, 'IMP-01', 'imprint', 'Imprint (Impressum)', linkOnEveryPage(scan, 'IMP-01', PATTERNS.imprint, 'Imprint (Impressum)')),
-    ...withPageErrors(scan, 'DSE-01', 'privacy', 'Privacy policy (Datenschutzerklärung)', linkOnEveryPage(scan, 'DSE-01', PATTERNS.privacy, 'Privacy policy (Datenschutzerklärung)')),
+    ...withPageErrors(scan, 'IMP-01', 'imprint', 'Imprint (Impressum)', linkOnEveryPage(scan, 'IMP-01', PATTERNS.imprint, 'Imprint (Impressum)', 'imprint')),
+    ...withPageErrors(scan, 'DSE-01', 'privacy', 'Privacy policy (Datenschutzerklärung)', linkOnEveryPage(scan, 'DSE-01', PATTERNS.privacy, 'Privacy policy (Datenschutzerklärung)', 'privacy')),
     ...imprintContent(scan),
     ...servicesMissingInPolicy(scan),
     ...shopLegalPages(scan),

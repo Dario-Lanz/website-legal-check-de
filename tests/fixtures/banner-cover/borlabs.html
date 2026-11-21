@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Borlabs-like consent dialog</title>
+<style>
+html{scroll-behavior:smooth}
+body{margin:0;background:#0000ff}
+main{height:1900px;color:#fff;padding:1em}
+footer{background:#00aa00;height:100px;text-align:center;line-height:100px}
+#BorlabsLikeBox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6)}
+#BorlabsLikeBox .box{position:absolute;left:383px;top:40px;width:600px;height:860px;background:#fff}
+#BorlabsLikeBox #cookie-preference-text{height:300px;background:#00ff00;color:#000;padding:8px}
+#BorlabsLikeBox .btn{position:absolute;left:20px;width:560px;height:44px;background:#ff0000;border:0;color:#fff}
+</style></head><body>
+<main><h1>Studio</h1></main>
+<footer><a href="/impressum.html">Impressum</a> <a href="/datenschutz.html">Datenschutz</a></footer>
+<div id="BorlabsLikeBox"><div class="box">
+  <h2>Privacy Preference</h2>
+  <div id="cookie-preference-text">We use cookies and ask for your consent. See our <a href="/datenschutz.html">privacy policy</a>. Sie können Ihre Auswahl jederzeit unter <a href="#settings">Einstellungen</a> widerrufen.</div>
+  <button class="btn" style="top:500px">I accept all</button>
+  <button class="btn" style="top:560px">Accept only essential cookies</button>
+</div></div>
+</body></html>

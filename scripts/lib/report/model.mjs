@@ -3,6 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { texts } from './i18n.mjs';
+import { esc, escCell, escHtml, link, typography } from './html-escape.mjs';
+import { expandWhere } from './where-links.mjs';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 
@@ -29,36 +31,10 @@ export const TOOL_ROW_CSS = `
   .qr svg { display: block; width: 15mm; height: 15mm; }
 `;
 
+export { esc, escCell, escHtml, link, typography };
+
 const PRIORITIES = [1, 2, 3];
 const KINDS = new Set(['gap', 'check']);
-const SAFE_URL = /^https?:\/\//i;
-
-/** Escape text for HTML element content and attribute values, without typography (URLs, copyable text such as the AI prompt). */
-export function escHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-/** Escape text for HTML element content and attribute values, with German typography. */
-export function esc(value) {
-  return typography(escHtml(value));
-}
-
-/**
- * German typography per DIN 5008 (as summarised in references/formatting.md): protected
- * space after § and before %, narrow protected space inside abbreviations like „z. B.“.
- */
-export function typography(text) {
-  return text
-    .replace(/(§§?) (?=\S)/g, '$1\u00A0')
-    .replace(/(\d) %/g, '$1\u00A0%')
-    .replace(/\b([A-Za-zÄÖÜäöü])\. ([A-Za-zÄÖÜäöü])\./g, '$1.\u202F$2.');
-}
-
-/** Link only for http(s) URLs; anything else is shown as plain text. */
-export function link(url, text) {
-  return SAFE_URL.test(String(url ?? '')) ? `<a href="${escHtml(url)}">${esc(text ?? url)}</a>` : esc(text ?? url ?? '');
-}
-
 function requireFields(object, fields, where) {
   for (const field of fields) {
     const value = object?.[field];
@@ -74,6 +50,7 @@ function checkFinding(f, index) {
   requireFields(f.plain, ['where', 'law', 'evidence'], `${where}.plain`);
   if (!PRIORITIES.includes(f.prio)) throw new Error(`report.json: ${where}.prio must be 1, 2 or 3`);
   if (!KINDS.has(f.kind)) throw new Error(`report.json: ${where}.kind must be "gap" or "check"`);
+  if (f.abmahnung === null) throw new Error(`report.json: ${where}.abmahnung is null: decide abmahnung: true or false, see abmahnungHint`);
   for (const fig of f.figures ?? []) requireFields(fig, ['src', 'caption'], `${where}.figures`);
   checkSources(f.sources, `${where}.sources`);
 }
@@ -96,8 +73,10 @@ export function buildModel(data, customTexts) {
   const findings = PRIORITIES.flatMap((prio) => data.findings.filter((f) => f.prio === prio))
     .map((f, i) => ({ ...f, no: i + 1, steps: f.steps ?? [], figures: f.figures ?? [], sources: f.sources ?? [], abmahnung: Boolean(f.abmahnung) }));
   const language = customTexts ? customTexts.lang : (data.language === 'en' ? 'en' : 'de');
+  const t = customTexts ?? texts(language);
+  findings.forEach((f) => { f.whereFull = expandWhere(f.where, data.site, t); });
   return {
-    language, t: customTexts ?? texts(language), platform: data.platform ?? null,
+    language, t, platform: data.platform ?? null,
     site: data.site, date: data.date, time: data.time ?? null, pagesScanned: data.pagesScanned, checklistStatus: data.checklistStatus,
     assumptions: data.assumptions ?? [], manualChecks: data.manualChecks ?? [], upcoming: data.upcoming ?? [],
     scanNotes: data.scanNotes ?? [], okChecks: data.okChecks ?? [], dropped: data.dropped ?? [], sourceUpdate: data.sourceUpdate ?? null,

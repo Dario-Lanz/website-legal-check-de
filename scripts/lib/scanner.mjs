@@ -5,8 +5,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { canonicalPageUrl, isSameSite, isThirdParty, normalizeStartUrl, NON_PAGE_EXTENSIONS } from './url.mjs';
-import { classifyPage, classifyVisitedPage, LEGAL_TYPES, selectDeepCheckUrls } from './page-types.mjs';
+import { canonicalPageUrl, isSameSite, isThirdParty, normalizeStartUrl, pageKey } from './url.mjs';
+import { classifyVisitedPage, selectDeepCheckUrls } from './page-types.mjs';
+import { sampleTargets } from './sample-targets.mjs';
 import { discoverSitemapUrls } from './sitemap.mjs';
 import { isPublicHost } from './public-host.mjs';
 import { matchService } from './third-parties.mjs';
@@ -40,7 +41,7 @@ export async function scanSite(options) {
   const transport = await checkTransport(start, { allowInternal: opts.allowInternalHosts });
   const browser = await chromium.launch({ args: opts.launchArgs });
   // `site` is the first-party base: the typed host until the start page shows where the site really lives.
-  const state = { pages: [], requests: [], cookieFirstSeen: new Map(), visited: new Set(), blocked: new Set(), notes: [], site: start, startedAt, timedOut: false };
+  const state = { pages: [], requests: [], cookieFirstSeen: new Map(), visited: new Set(), scannedKeys: new Map(), blocked: new Set(), notes: [], site: start, startedAt, timedOut: false };
   const watchdog = startWatchdog(browser, state, opts, startedAt);
   try {
     await blockInternalNavigations(browser, {
@@ -80,7 +81,8 @@ async function crawlSite(context, { start, state, opts, evidenceDir }) {
   // When the time limit ended the start page, the partial result is still written (with the note).
   if (firstPage?.error && !state.timedOut) throw new Error(startPageError(firstPage, state));
   adoptLandingHost(state, firstPage, opts);
-  for (const url of sampleTargets(state, opts)) await crawl(url);
+  const startUrl = new URL(firstPage?.finalUrl ?? state.site.href);
+  for (const url of sampleTargets(firstPage?.facts?.links ?? [], startUrl, opts)) await crawl(url);
   return opts.deep && !state.timedOut ? runDeepCheck(state, opts, crawl) : { skipped: true };
 }
 
@@ -207,7 +209,7 @@ async function recheckPage(context, state, opts, evidenceDir, { old, oldDataDir,
 
 async function crawlPage(context, url, state, opts, evidenceDir) {
   const canonical = canonicalPageUrl(url, url);
-  if (!canonical || state.visited.has(canonical)) return;
+  if (!canonical || state.visited.has(canonical) || state.scannedKeys.has(pageKey(canonical))) return;
   if (timeIsUp(state, opts)) {
     state.notes.push(`Time limit reached, skipped: ${canonical}`);
     return;
@@ -220,8 +222,18 @@ async function crawlPage(context, url, state, opts, evidenceDir) {
   });
   result.pageType = classifyVisitedPage(result.finalUrl ?? canonical, result.facts?.title);
   if (result.finalUrl) state.visited.add(canonicalPageUrl(result.finalUrl, result.finalUrl));
-  state.pages.push(result);
-  await noteNewCookies(context, state);
+  const finalKey = pageKey(result.finalUrl ?? canonical);
+  const scannedIndex = finalKey !== pageKey(canonical) ? state.scannedKeys.get(finalKey) : undefined;
+  if (scannedIndex !== undefined) {
+    // /cart and /checkout both leading to /warenkorb: the page was scanned already, its second visit is dropped.
+    // Cookies that only this visit set belong to the page that was kept, not to the next page that takes this index.
+    state.requests = state.requests.filter((r) => r.page !== state.currentIndex);
+  } else {
+    state.scannedKeys.set(pageKey(canonical), state.currentIndex);
+    state.scannedKeys.set(finalKey, state.currentIndex);
+    state.pages.push(result);
+  }
+  await noteNewCookies(context, state, scannedIndex ?? state.currentIndex);
   await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
 }
 
@@ -234,7 +246,7 @@ function recordRequest(state, url, resourceType, mainFrame = false) {
   });
 }
 
-async function noteNewCookies(context, state) {
+async function noteNewCookies(context, state, index = state.currentIndex) {
   let cookies;
   try {
     cookies = await context.cookies();
@@ -244,7 +256,7 @@ async function noteNewCookies(context, state) {
   }
   for (const cookie of cookies) {
     const key = `${cookie.name}@${cookie.domain}`;
-    if (!state.cookieFirstSeen.has(key)) state.cookieFirstSeen.set(key, state.currentIndex);
+    if (!state.cookieFirstSeen.has(key)) state.cookieFirstSeen.set(key, index);
   }
 }
 
@@ -257,19 +269,6 @@ function describeCookie(cookie, start, firstSeen) {
     thirdParty: isThirdParty(`https://${host}/`, start.hostname),
     firstSeenOnPage: firstSeen.get(`${cookie.name}@${cookie.domain}`) ?? null,
   };
-}
-
-/** Header/footer/nav links and legal pages first, then other internal links. */
-function sampleTargets(state, opts) {
-  const links = state.pages[0]?.facts?.links ?? [];
-  const usable = links.filter((l) => isSameSite(l.href, state.site) && !NON_PAGE_EXTENSIONS.test(new URL(l.href).pathname));
-  const nav = unique(usable.filter((l) => l.region !== 'main' || LEGAL_TYPES.includes(classifyPage(l.href, l.text))));
-  const other = unique(usable.filter((l) => l.region === 'main')).filter((u) => !nav.includes(u));
-  return [...nav.slice(0, opts.maxNavPages), ...other.slice(0, opts.maxExtraPages)];
-}
-
-function unique(links) {
-  return [...new Set(links.map((l) => canonicalPageUrl(l.href, l.href)).filter(Boolean))];
 }
 
 async function runDeepCheck(state, opts, crawl) {

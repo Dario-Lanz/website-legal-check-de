@@ -4,7 +4,8 @@
 
 import { readFileSync } from 'node:fs';
 import { renderKiPrompt } from './ki-prompt.mjs';
-import { ABMAHN_ICON, collectSources, esc, escHtml, link, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
+import { ABMAHN_ICON, collectSources, esc, escCell, escHtml, link, platformLine, TOOL_ROW_CSS, toolRow } from './model.mjs';
+import { whereHtml } from './where-links.mjs';
 
 const ABBREVIATIONS = JSON.parse(readFileSync(new URL('../../../data/abbreviations.json', import.meta.url), 'utf8')).entries;
 const longOf = (a, t) => t.abbreviations?.[a.short] ?? (t.lang === 'en' && a.longEn ? a.longEn : a.long);
@@ -39,7 +40,7 @@ ${TOOL_ROW_CSS}  .intro { margin: 0 0 5mm; }
   .toc a .t { flex: 1; }
   .toc a::after { content: target-counter(attr(href url), page); padding-left: 3mm; }
   table { width: 100%; border-collapse: collapse; font-size: 11pt; margin: 2mm 0; }
-  th, td { border: 1px solid #bbb; padding: 1.5mm 2mm; text-align: left; vertical-align: top; }
+  th, td { border: 1px solid #bbb; padding: 1.5mm 2mm; text-align: left; vertical-align: top; overflow-wrap: break-word; hyphens: auto; }
   th { background: #f0f0f0; }
   tbody th { width: 30mm; }
   caption { caption-side: top; text-align: left; font-size: 9.5pt; color: #444; padding-bottom: 1mm; break-after: avoid; }
@@ -55,7 +56,8 @@ ${TOOL_ROW_CSS}  .intro { margin: 0 0 5mm; }
   .draft { border: 1px dashed #666; background: #fafafa; padding: 3mm; white-space: pre-wrap; font-size: 10.5pt; }
   .draft-label { margin: 0 0 2mm; font-weight: 600; color: #b45309; white-space: normal; }
   pre.prompt { font: 9.5pt/1.4 "Source Sans 3", sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #bbb; background: #f7f7f7; padding: 3mm; margin: 2mm 0; }
-  a { color: #1d4ed8; overflow-wrap: anywhere; }
+  a { color: #1d4ed8; overflow-wrap: anywhere; hyphens: manual; }
+  .tech { overflow-wrap: anywhere; hyphens: manual; }
   ol.steps, ul { padding-left: 6mm; }
   ol.sources li { margin-bottom: 1.5mm; overflow-wrap: anywhere; }
 `;
@@ -87,12 +89,12 @@ function findingChapter(t, f, counters, sourceNo) {
   // explanation for laypeople (decision 28a): headings and legal terms alone are not enough.
   const plain = f.plain ?? {};
   const rows = [
-    [t.long.rows[0], t.prio[f.prio].title, t.prio[f.prio].lead],
-    [t.long.rows[1], f.where, plain.where],
-    [t.long.rows[2], f.summary],
-    [t.long.rows[3], f.law, plain.law],
-    [t.long.rows[4], f.evidence, plain.evidence],
-  ].map(([k, v, p]) => `<tr><th>${k}</th><td>${esc(v)}${p ? `<div class="plain">${esc(p)}</div>` : ''}</td></tr>`).join('');
+    [t.long.rows[0], esc(t.prio[f.prio].title), t.prio[f.prio].lead],
+    [t.long.rows[1], whereHtml(f.whereFull), plain.where],
+    [t.long.rows[2], escCell(f.summary)],
+    [t.long.rows[3], escCell(f.law), plain.law],
+    [t.long.rows[4], escCell(f.evidence), plain.evidence],
+  ].map(([k, html, p]) => `<tr><th>${k}</th><td>${html}${p ? `<div class="plain">${escCell(p)}</div>` : ''}</td></tr>`).join('');
   const parts = [
     `<section class="chapter" id="bef-${f.no}"><h2>${f.no}. ${esc(f.title)} ${tag}</h2>${warn}`,
     counters.table(t.long.profile(f.no), rows),
